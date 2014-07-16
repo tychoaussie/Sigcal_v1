@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140715"
+__version__ = "20140716"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -204,9 +204,9 @@ def process(infile,outfile,calfile):
 
                                       # Integrate the sensor to yield microvolt/microns * our as-of-yet unknown constant
                                       #    
-   # def f(x):
-   #     return x                     # Not sure what this is - I think it's orphan code.
-   # y = f(sensor3)
+    def f(x):
+        return x
+    y = f(sensor3)
 
     intsensor = []
     for i in range(1,len(sensor3)+1):
@@ -242,7 +242,7 @@ def process(infile,outfile,calfile):
                                       #
                                       # ccal represents the cal constant as determined by both calculation methods.
                                       #
-#    print("Integral to derivative correlates to {0:.1f} percent".format((1-cal1/cal2)*100))
+
     print("ccal (int/dev deviation={0:.1f} %) calculates to: {1:.3f} for frequency {2:.1f} Hz".format(confidence,ccal,Frequency))
 
                                       #
@@ -256,20 +256,14 @@ def process(infile,outfile,calfile):
                                       #     Field 2: ccal = Sensor response in V/m/sec
                                       #     Field 3: confidence = confidence in percentage between the two calculation methods.
                                       #     Field 4: phase = Phase difference between the cal coil drive signal and the output
-                                      #     Field 5: np.std(sensor3) = rms amplitude of signal (rms) uV/sec
-                                      #     Field 6: np.std(laser3) = rms ground motion of laser position sensor in microns
-                                      #     Field 7: np.std(intsensor) = rms integral of signal in uV/micron (position)
-                                      #     Field 8: np.std(derlaser) = rms derivative of laser position in uV/microns/sec
-                                      #     Field 9:Name of input file (text)
-                                      #     print np.std(sensor3),np.std(laser3),np.std(intsensor),np.std(derlaser)
+                                      #     Field 5:Name of input file (text)
                                       #
-    if (np.abs(confidence) < 15.0):
-        with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
-            outrow = csv.writer(csvfile, delimiter = ",",
-                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([Frequency,ccal,confidence,phase,np.std(sensor3),np.std(laser3),np.std(intsensor),np.std(derlaser),infile])
-    else:
-        print("Confidence  of {0:.1f} for event exceeds acceptable parameters. Recheck data for glitches, frequency shifts and offsets.".format(confidence))
+                                      #
+    with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+        outrow = csv.writer(csvfile, delimiter = ",",
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        outrow.writerow([Frequency,ccal,confidence,phase,infile])
+
 
 
 
@@ -288,7 +282,7 @@ def main():
     dir=""
     infile = ""
     outfile = os.getcwd()+"\calibration_output.cal"
-    calcontrol = os.getcwd()+"\calcontrol.cal"
+    calfile = os.getcwd()+"\calcontrol.cal"
 
     if optioncount > 1:
 
@@ -296,9 +290,9 @@ def main():
             outfile = sys.argv[2]                          # Assume that output file has been designated            
 
             if '.csv' in sys.argv[3]:                      # If there is a calcontrol set, use it.
-                calcontrol = sys.argv[3]
+                calfile = sys.argv[3]
             else:
-                calcontrol = sys.argv[3]+"\calcontrol.cal" # Assume they pointed at a directory.
+                calfile = sys.argv[3]+"\calcontrol.cal" # Assume they pointed at a directory.
             
             if "." in sys.argv[1]:                         
                 infile = sys.argv[1]
@@ -307,7 +301,7 @@ def main():
                 filelist = os.listdir(sys.argv[1])
 
         if optioncount == 3:                               # No calcontrol designator, but an output file is designated
-            calcontrol = os.getcwd()+"\calcontrol.cal"     # Set the default cal control as current working directory.
+            calfile = os.getcwd()+"\calcontrol.cal"     # Set the default cal control as current working directory.
             outfile = sys.argv[2]
             
             if "." in sys.argv[1]:                         # Set the input file 
@@ -317,7 +311,7 @@ def main():
                 
             
         if optioncount == 2:
-            calcontrol = os.getcwd()+"\calcontrol.cal"
+            calfile = os.getcwd()+"\calcontrol.cal"
             outfile = os.getcwd()+"\calibration_output.cal"
 
             if "." in sys.argv[1]:
@@ -329,13 +323,27 @@ def main():
     else:
         filelist = os.listdir(os.getcwd())                 # No switches? No problem. Use the current working directory.
         
-        print " Cal control file:",calcontrol 
+        print " Cal control file:",calfile
+        constant = getconstants(calfile)
+                                                           # 
+                                                           # Create the header for the calibration output file.
+                                                           # Header contains the station name, ADC cal constants,
+                                                           # Laser cal constant, the geometric correction factor,
+                                                           # the damping ratio, and the free period frequency.
+                                                           #
+ 
+        with open(outfile,'wb') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+            outrow = csv.writer(csvfile, delimiter = ",",
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            outrow.writerow(constant)
+                                                           # Now loop through the directory of csv files to build the
+                                                           # calibration curve.
 
         for n in range(len(filelist)):                     # Parse through directory for all .csv files
             if ".csv" in filelist[n]:                      # Skip any files that are not a .csv
                 infile = filelist[n]                       # Set the input file from the file listing if it is a .csv
-            #   print "Infile set to: ",infile
-                process(infile,outfile,calcontrol)         # Process the file and output to outfile based on parameters
+                print "Infile set to: ",infile
+                process(infile,outfile,calfile)            # Process the file and output to outfile based on parameters
                                                            # found in calcontrol
 
     print("output sent to {} ".format(outfile))
