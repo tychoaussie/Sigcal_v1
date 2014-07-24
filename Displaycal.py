@@ -84,7 +84,7 @@ def plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h):
     # plot it
     
     plt.loglog(Frequencies, Sensitivities, "*")     # "*" means draw asterisk instead of lines
-    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz             Damping Ratio = {1:.3f}".format(Freeperiod,h))
+    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz              Damping Ratio = {1:.3f}".format(Freeperiod,h))
     plt.ylabel("Sensitivity in V/m/sec")
     plt.title("Sensitivity curve for station "+Station+" on "+time.asctime())
 #    plt.annotate("Free period = {:.1f} Hz".format(Freeperiod), xy=(0.02,0.02),xytext=(0.02,0.02))
@@ -347,21 +347,21 @@ def main():
                                                            # the damping ratio, and the free period frequency.
                                                            #
  
-        with open(outfile,'wb') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
-            outrow = csv.writer(csvfile, delimiter = ",",
-                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow(constant)
+#        with open(outfile,'wb') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+#            outrow = csv.writer(csvfile, delimiter = ",",
+#                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#            outrow.writerow(constant)
                                                            # Now loop through the directory of csv files to build the
                                                            # calibration curve.
 
-        for n in range(len(filelist)):                     # Parse through directory for all .csv files
-            if ".csv" in filelist[n]:                      # Skip any files that are not a .csv
-                infile = filelist[n]                       # Set the input file from the file listing if it is a .csv
-                print "Infile set to: ",infile
-                process(infile,outfile,calfile)            # Process the file and output to outfile based on parameters
+#        for n in range(len(filelist)):                     # Parse through directory for all .csv files
+#            if ".csv" in filelist[n]:                      # Skip any files that are not a .csv
+#                infile = filelist[n]                       # Set the input file from the file listing if it is a .csv
+#                print "Infile set to: ",infile
+#                process(infile,outfile,calfile)            # Process the file and output to outfile based on parameters
                                                            # found in calcontrol
 
-    print("output sent to {} ".format(outfile))
+#    print("output sent to {} ".format(outfile))
     
                                                            #
                                                            # Now that the file has been created,
