@@ -1,6 +1,11 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140724"
+__version__ = "20140730"
 __license__ = "MIT"
+
+#Experimental code for troubleshooting integral and derivative issues.
+#Created in the apartment in Obninsk on Wednesday for looking at divergence
+# when running different sample rates.
+
 
 import os, sys, csv
 from scipy import signal
@@ -94,7 +99,25 @@ def plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h):
 
     plt.show()
 
+def plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h):
+    
+ 
+    # prepare data points
+    # plot it
+    
+    plt.loglog(Frequencies, Calint, "*", Frequencies,Calderiv,"+")     # "*" means draw asterisk instead of lines
+    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz             Damping Ratio = {1:.3f}".format(Freeperiod,h))
+    plt.ylabel("Sensitivity in V/m/sec")
+    plt.title("Sensitivity curve for station "+Station+" on "+time.asctime())
+#    plt.annotate("Free period = {:.1f} Hz".format(Freeperiod), xy=(0.02,0.02),xytext=(0.02,0.02))
+#    plt.annotate("Damping Ratio = {:.3f}".format(h), xy=(1,.02),xytext=(1,.02))
+    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
+                 arrowprops=dict(facecolor='black',shrink=0.05))
+    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
+                 arrowprops=dict(facecolor='black',shrink=0.05))
 
+
+    plt.show()
 
 
                                       #                    Function process:
@@ -102,6 +125,8 @@ def plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h):
 def process(infile,outfile,calfile):
 
     fdata = load(infile)     # Load the current infile
+    outlog = calfile[:string.find(calfile,'.')]+".log" 
+    print outlog
     header = fdata[0]
     adccal = [1.0,1.0,1.0,1.0]
 
@@ -122,9 +147,13 @@ def process(infile,outfile,calfile):
                                              # Parse out the sensor and laser data
     sensor = [] 
     laser = []
+
+    lchannel = 3                             # The channel used with the laser
+    schannel = 2                             # The channel on which the sensor resides
+
     for i in range(0,len(fdata[1])):
-        sensor.append(int(fdata[1][i][1], base=10))
-        laser.append(int(fdata[1][i][4], base=10))
+        sensor.append(int(fdata[1][i][schannel+1], base=10))
+        laser.append(int(fdata[1][i][lchannel+1], base=10))
 
                                              # Calculate the sample period based on the timing channels (in seconds)
 
@@ -207,8 +236,8 @@ def process(infile,outfile,calfile):
                                       # sensor3 = sensor in terms of microvolts / microns/sec * unknown cal factor
                                       # laser3 in terms of known microns of ground motion
 
-    sensor3 = adccal[0]*np.array(sensor2) 
-    laser3 = adccal[3]*lasercal*lcalconst/gmcorrect*np.array(laser2)
+    sensor3 = adccal[schannel]*np.array(sensor2) 
+    laser3 = adccal[lchannel]*lasercal*lcalconst/gmcorrect*np.array(laser2)
 
                                       # Now calculate the integral of the sensor and the derivative of ground motion
                                       # Integral limits of integration: time from zero to end of the record
@@ -254,7 +283,7 @@ def process(infile,outfile,calfile):
                                       # ccal represents the cal constant as determined by both calculation methods.
                                       #
 
-    print("ccal (int/dev deviation={0:.1f} %) calculates to: {1:.3f} for frequency {2:.1f} Hz".format(confidence,ccal,Frequency))
+   
 
                                       #
                                       #     Calculate the phase difference between input signal and the response
@@ -269,14 +298,25 @@ def process(infile,outfile,calfile):
                                       #     Field 4: phase = Phase difference between the cal coil drive signal and the output
                                       #     Field 5:Name of input file (text)
                                       #
-    if (np.abs(confidence) < 15.0):             #
+    if (np.abs(confidence) < 100.0):             #
         with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
             outrow = csv.writer(csvfile, delimiter = ",",
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([Frequency,ccal,confidence,phase,infile])
+            outrow.writerow([Frequency,ccal,cal1,cal2,confidence,phase,infile])
+        print("ccal (int/dev deviation={0:.1f} %) calculates to: {1:.3f} for frequency {2:.1f} Hz".format(confidence,ccal,Frequency))
+        
+        with open(outlog,'a') as csvfile:
+            outrow = csv.writer(csvfile, delimiter = ",",
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            outrow.writerow([Frequency,ccal,cal1,cal2,confidence,phase,infile])
+
     else:
-        print("ccal uncertainty is greater than 15% deviation so frequency {:.1f} Hz will not be written to file.".format(Frequency))                                  #
-                                      #    
+        print("ccal uncertainty is greater than 100% deviation so frequency {:.1f} Hz will not be written to file.".format(Frequency))
+        with open(outlog,'a') as csvfile:
+            outrow = csv.writer(csvfile, delimiter = ",",
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            outrow.writerow(["File not written:",Frequency,ccal,cal1,cal2,confidence,infile])
+             
                                       
 
 #######################################################################################
@@ -339,6 +379,8 @@ def main():
         filelist = os.listdir(os.getcwd())                 # No switches? No problem. Use the current working directory.
         
         print " Cal control file:",calfile
+        outlog = outfile+".log"
+
         constant = getconstants(calfile)
                                                            # 
                                                            # Create the header for the calibration output file.
@@ -382,10 +424,15 @@ def main():
     Freeperiod = float(fdata[0][0][8])    # Free period oscillation in Hz  
     Frequencies = []
     Sensitivities = []
+    Calint = []
+    Calderiv = []
     for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
-        Frequencies.append(float(fdata[1][i][0]))
-        Sensitivities.append(float(fdata[1][i][1]))
+        Frequencies.append(float(fdata[1][i][0]))     # Field 0 is the frequency
+        Sensitivities.append(float(fdata[1][i][1]))   # Field 1 is the average sensitivity
+        Calint.append(float(fdata[1][i][2]))          # Field 2 is the sensitivity from int of velocity
+        Calderiv.append(float(fdata[1][i][3]))        # Field 3 is the sensitivity from deriv of laser
     plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
+    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
 
 
 
