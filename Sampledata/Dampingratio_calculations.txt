@@ -1,0 +1,18 @@
+impulses : 3
+start2011 to 2840
+3330 to 4150
+4760 to 5930
+
+182 to 1120
+3360 to 4095
+.771 versus hand calculated 0.775
+
+SNNA:
+4 impulses
+1215 to 1800
+2320 to 3000
+3820 to 4600
+5145 to 5750
+
+.690 versus hand calculated 0.722
+
