@@ -1,10 +1,6 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140730"
+__version__ = "20140828"
 __license__ = "MIT"
-
-#Experimental code for troubleshooting integral and derivative issues.
-#Created in the apartment in Obninsk on Wednesday for looking at divergence
-# when running different sample rates.
 
 
 import os, sys, csv
@@ -14,6 +10,14 @@ import pylab as plt
 import numpy as np
 import scipy as sp
 import time, string
+import grid_search                         # Grid_search created by Hans Hartse, LANL
+                                           # This module must be installed in the python lib
+                                           # directory that is referenced by whatever python
+                                           # you are running. It also has an Obspy dependency
+                                           # So Obspy must be installed for it to run.
+                                           # If you are running this in ipython notebooks
+                                           # grid_search.py must be installed in c:/Anaconda/lib
+
                                            # from obspy.core import read, Trace, Stream, UTCDateTime
                                            # from obspy.sac import SacIO
 
@@ -302,20 +306,20 @@ def process(infile,outfile,calfile):
         with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
             outrow = csv.writer(csvfile, delimiter = ",",
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([Frequency,ccal,cal1,cal2,confidence,phase,infile])
+            outrow.writerow([Frequency,ccal,infile])
         print("ccal (int/dev deviation={0:.1f} %) calculates to: {1:.3f} for frequency {2:.1f} Hz".format(confidence,ccal,Frequency))
         
         with open(outlog,'a') as csvfile:
             outrow = csv.writer(csvfile, delimiter = ",",
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([Frequency,ccal,cal1,cal2,confidence,phase,infile])
+            outrow.writerow([Frequency,ccal,infile]) # extra parameters are cal1, cal2, confidence, and phase which have been removed. 
 
     else:
         print("ccal uncertainty is greater than 100% deviation so frequency {:.1f} Hz will not be written to file.".format(Frequency))
         with open(outlog,'a') as csvfile:
             outrow = csv.writer(csvfile, delimiter = ",",
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow(["File not written:",Frequency,ccal,cal1,cal2,confidence,infile])
+            outrow.writerow(["File not written:",Frequency,ccal,infile])
              
                                       
 
@@ -409,31 +413,63 @@ def main():
                                                            # Now that the file has been created,
                                                            # Bring in the data and plot.                
                                                            #
+
+
+                                          # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
+                                          # Set up the control constants.
+
+    nsearch = 2 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+                                          # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
+                                          # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
+                                          # 3: Grid search for optimum amplitude, damping ratio AND free period
+    coarse_search = 0.10                  # Typically 0.10
+    fine_search = 0.005                   # Typically 0.005
+    nloops = 5                            # Number of iterations through the grid (typically 4 or 5)
+    ngrids = 20                           # Number of steps (typically 20)
+    amp_units = "V*sec/m"
+    amp_label = "Amplitude [" + amp_units + "]"
+    lmult = 2                             # Lower freq. bandpass multiple (typically 2)
+    hmult = 6                             # higher freq. bandpass multiple (typically 6)
+                                          # Gather the relevant information from the output file
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
                                           # and includes the damping ratio, free period frequency, and channel calibration information
                                           # in this order:
-    Station = fdata[0][0][0]              # Station name
+    seismometer = fdata[0][0][0]              # Station name
                                           # fdata[0][0][1] # Channel 0 ADC sensitivity in microvolts / count
                                           # fdata[0][0][2] # Channel 1
                                           # fdata[0][0][3] # Channel 2
                                           # fdata[0][0][4] # Channel 3
                                           # fdata[0][0][5] # Laser position sensor in millivolts/micron
                                           # fdata[0][0][6] # Lcalconstant geometry correction factor
-    h = float(fdata[0][0][7])             # h damping ratio
-    Freeperiod = float(fdata[0][0][8])    # Free period oscillation in Hz  
-    Frequencies = []
-    Sensitivities = []
-    Calint = []
-    Calderiv = []
-    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
-        Frequencies.append(float(fdata[1][i][0]))     # Field 0 is the frequency
-        Sensitivities.append(float(fdata[1][i][1]))   # Field 1 is the average sensitivity
-        Calint.append(float(fdata[1][i][2]))          # Field 2 is the sensitivity from int of velocity
-        Calderiv.append(float(fdata[1][i][3]))        # Field 3 is the sensitivity from deriv of laser
-    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
-    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
 
+    msu_damp = float(fdata[0][0][7])      # h damping ratio
+    msu_freep = float(fdata[0][0][8])     # Free period oscillation in Hz  
+    freq_msu = []                         # Initialize the frequency array
+    amp_msu = []                          # Initialize the matching amplitude array
+
+    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
+        freq_msu.append(float(fdata[1][i][0]))     # Field 0 is the frequency
+        amp_msu.append(float(fdata[1][i][1]))      # Field 1 is the average sensitivity
+
+                                #    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
+                                #    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
+
+                                          # Perform the grid search and create the curve
+
+    (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
+     grid_search.find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,\
+     coarse_search,fine_search,nloops,ngrids,lmult,hmult)
+
+                                          # Create the sac poles & zeros file
+
+    sac_pz_file = os.getcwd() + seismometer + '.sacpz' # Set the file name to whatever station name is.
+    grid_search.write_sacpz(sac_pz_file,resp)
+
+                                          # Plot the data for the user.
+
+    grid_search.plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
+    msu_freep,msu_damp,amp_average,amp_label,seismometer, sac_pz_file)
 
 
 #
