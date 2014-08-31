@@ -7,10 +7,11 @@ Grid search function for best-fit response curve parameters: free period, dampin
 ###### LA-CC-14-079 ###############################################################
 # Author: Hans Hartse, LANL : August, 2014
 # Modified by D Burk, Michigan State University
-# Version: 20140828
+# Version: 20140831
 #
 # Modification 20140828 : Adjust amplitude calculation to start at 2x freeperiod to 5x freeperiod
 # Also correct the path of the plot file output
+# Modification 20140831 : minor bug fixes to file output path, and of lmult,hmult
 #
 # holds the following functions:
 # write_sacpz - write a SAC-style pole-zero file where input is an ObsPy "dictionary"
@@ -105,8 +106,11 @@ def find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,coars
 
     count = 0
     amp_average = 0.
+    lmult = lmult*msu_freep
+    hmult = hmult*msu_freep
+    
     for i, freq in enumerate(freq_msu):
-        if ( freq > lmult * msu_freep) and (freq < hmult * msu_freep):  
+        if ( freq > lmult) and (freq < hmult):  
                                       # Set frequency discriminator to msu_freep * 2 to get off the 
                                       # knee of the curve for SP instruments - drb
            amp_average = amp_average + amp_msu[i] 
