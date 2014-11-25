@@ -25,6 +25,10 @@ __license__ = "MIT"
 
 # 11/25/2014 - fixed the problem with free period going into the grid search as a
 # frequency rather than a period.
+# - Rev b: Constrained the grid search to use the MSU measured free period AND damping
+# when doing a grid search because of demonstrated dependency on damping ratio as
+# affecting the results of the initial sensitivity curve. Improve at a later date.
+
 
 
 import os, sys, csv
@@ -426,7 +430,7 @@ def main():
                                           # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
                                           # Set up the control constants.
 
-    nsearch = 2 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+    nsearch = 1 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
                                           # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
                                           # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
                                           # 3: Grid search for optimum amplitude, damping ratio AND free period
@@ -437,7 +441,7 @@ def main():
     amp_units = "V*sec/m"
     amp_label = "Amplitude [" + amp_units + "]"
     lmult = 2                             # Lower freq. bandpass multiple (typically 2)
-    hmult = 6                             # higher freq. bandpass multiple (typically 6)
+    hmult = 5                             # higher freq. bandpass multiple (typically 6)
                                           # Gather the relevant information from the output file
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
