@@ -6,16 +6,17 @@ Works with csv files representing the ADC output in counts.
 IMPORTANT SCRIPTS: Located in the subdirectory sigscript.
 
 Script descriptions:
-Sigcal.py - The main processing algorithm that runs through the csv files to assemble the cal curve
-build_calconst.py - A step-through code to assemble the calibration constants text file used by Sigcal
-cal2sacpz.py - An advanced subroutine from sigcal for regenerating sac to pz files with optional features
-calconst.py
-dampingratio.py - analyzes a csv containing impulse events to calculate the damping ratio of seismometer
-dat2csv.py - batch converts symmetric research data files into a sigcal compatable .csv file format
-displaycal.py - uses the sigcal file output to plot the calibration curve
-displaycsv.py - displays a single csv file for visualization of the time-history data within
-freeperiod.py - calculates the free period of an undamped oscillation within the csv file
-grid_search.py - Subroutine used by sigcal to create a 'best-fit' poles and zeros SAC file
+
+1) Sigcal.py - The main processing algorithm that runs through the csv files to assemble the cal curve
+2) build_calconst.py - A step-through code to assemble the calibration constants text file used by Sigcal
+3) cal2sacpz.py - An advanced subroutine from sigcal for regenerating sac to pz files with optional features
+4) calconst.py
+5) dampingratio.py - analyzes a csv containing impulse events to calculate the damping ratio of seismometer
+6) dat2csv.py - batch converts symmetric research data files into a sigcal compatable .csv file format
+7) displaycal.py - uses the sigcal file output to plot the calibration curve
+8) displaycsv.py - displays a single csv file for visualization of the time-history data within
+9) freeperiod.py - calculates the free period of an undamped oscillation within the csv file
+10) grid_search.py - Subroutine used by sigcal to create a 'best-fit' poles and zeros SAC file
 ==========
 
 Basic procedure:
