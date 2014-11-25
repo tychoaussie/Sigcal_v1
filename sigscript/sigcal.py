@@ -1,6 +1,31 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140724"
+__version__ = "20141125"
 __license__ = "MIT"
+
+# NEW VERSION for testing revised signal processing techniques.
+# Use FFT for finding the RMS of the signals,
+# then use 2*pi*f to compare relationship of signal to derivative of
+# the laser position.
+# Break the waveform into 4096 sample chunks and process them.
+# Then, look at the standard deviation and use the chunk with the
+# lowest dtandard deviation for determining sensitivity.
+
+# 20141114 version: Move the file construction out of the process loop, and instead, pass
+# the raw parameters into main, where they are then assembled into an array
+# and file. Then, use the array directly with grid searching for determining 
+# the optimum damping ratio that fits the curve, and then write out the final
+# file, based on the optimized damping ratio.
+
+# This prepares the code for use in internalizing the curve calculations.
+# The next iteration of code likely will pass the UNCOMPENSATED ground motion curve 
+# into the grid search algorithm so that we won't have to know what the damping
+# ratio is. Rather, we'll use the shape of the calibration curve and a grid search
+# to model the theoretical damping ratio that best describes the behavior of the
+# transducer. This should be the practical damping ratio of the whole system.
+
+# 11/25/2014 - fixed the problem with free period going into the grid search as a
+# frequency rather than a period.
+
 
 import os, sys, csv
 from scipy import signal
@@ -9,6 +34,14 @@ import pylab as plt
 import numpy as np
 import scipy as sp
 import time, string
+import grid_search                         # Grid_search created by Hans Hartse, LANL
+                                           # This module must be installed in the python lib
+                                           # directory that is referenced by whatever python
+                                           # you are running. It also has an Obspy dependency
+                                           # So Obspy must be installed for it to run.
+                                           # If you are running this in ipython notebooks
+                                           # grid_search.py must be installed in c:/Anaconda/lib
+
                                            # from obspy.core import read, Trace, Stream, UTCDateTime
                                            # from obspy.sac import SacIO
 
@@ -94,14 +127,34 @@ def plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h):
 
     plt.show()
 
+def plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h):
+    
+ 
+    # prepare data points
+    # plot it
+    
+    plt.loglog(Frequencies, Calint, "*", Frequencies,Calderiv,"+")     # "*" means draw asterisk instead of lines
+    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz             Damping Ratio = {1:.3f}".format(Freeperiod,h))
+    plt.ylabel("Sensitivity in V/m/sec")
+    plt.title("Sensitivity curve for station "+Station+" on "+time.asctime())
+#    plt.annotate("Free period = {:.1f} Hz".format(Freeperiod), xy=(0.02,0.02),xytext=(0.02,0.02))
+#    plt.annotate("Damping Ratio = {:.3f}".format(h), xy=(1,.02),xytext=(1,.02))
+    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
+                 arrowprops=dict(facecolor='black',shrink=0.05))
+    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
+                 arrowprops=dict(facecolor='black',shrink=0.05))
 
+
+    plt.show()
 
 
                                       #                    Function process:
 
-def process(infile,outfile,calfile):
+def process(infile,calfile):
 
     fdata = load(infile)     # Load the current infile
+    outlog = calfile[:string.find(calfile,'.')]+".log" 
+#    print outlog
     header = fdata[0]
     adccal = [1.0,1.0,1.0,1.0]
 
@@ -122,9 +175,13 @@ def process(infile,outfile,calfile):
                                              # Parse out the sensor and laser data
     sensor = [] 
     laser = []
+
+    lchannel = 3                             # The channel used with the laser
+    schannel = 2                             # The channel on which the sensor resides
+
     for i in range(0,len(fdata[1])):
-        sensor.append(int(fdata[1][i][1], base=10))
-        laser.append(int(fdata[1][i][4], base=10))
+        sensor.append(int(fdata[1][i][schannel+1], base=10))
+        laser.append(int(fdata[1][i][lchannel+1], base=10))
 
                                              # Calculate the sample period based on the timing channels (in seconds)
 
@@ -133,19 +190,48 @@ def process(infile,outfile,calfile):
                                       #            
                                       # Find the period of the observed signal
                                       #
-    sense = signal.detrend(sensor)
-    N = len(sense)
-    W    = np.fft.fft(sense)
-    freq = np.fft.fftfreq(len(sense),delta) # First value represents the number of samples and delta is the sample rate
-
+    #    sense = signal.detrend(sensor)
+    # Create a head and tail for the file of 4096 sample apiece.
+    # We will create two ratios, from the head and tail of the file
+    # and use the one with the lowest standard deviation for determining
+    # the one for use with the FFT
+    #
+    sensor = signal.detrend(sensor)
+    laser = signal.detrend(laser)
+    sensor1 = []
+    sensor2 = []
+    laser1 = []
+    laser2 = []
+    for i in range(0,4096):
+        sensor1.append(sensor[i]) # take the first 4096 samples
+        sensor2.append(sensor[(len(sensor)-4096+i)]) # Take the last 4096 samples
+        laser1.append(laser[i]) # take the first 4096 samples
+        laser2.append(laser[(len(laser)-4096+i)]) # take the last 4096 samples
+    
+    ratio1 = np.std(sensor1)*np.std(laser1)
+    ratio2 = np.std(sensor2)*np.std(laser2)
+    if ratio1<ratio2: # The chunk with the smallest standard deviation wins.
+        sensor3 = sensor1
+        laser3 = laser1
+    else:
+        sensor3 = sensor2
+        laser3 = laser2
+                         # Apply the ADC constants to the sensor channel data to convert to units of volts
+    sensor3 = adccal[schannel]*np.array(sensor3)
+                         # Apply an FFT to the sensor data
+                         # Generate a frequency table
+                         # Find the index point where rms energy is highest
+                         # Return the frequency in Hz.
+    senfft   = np.fft.fft(sensor3)
+    freq = np.fft.fftfreq(len(sensor3),delta) # Length of the sample set and delta is the samplerate
+    idx = np.where(abs(senfft)==max(np.abs(senfft)))[0][-1]
+    Frequency = abs(freq[idx])
+   
                                       #
                                       # Take the sample with the largest amplitude as our center frequency. 
                                       # This only works if the signal is heavily sinusoidal and stationary 
                                       # in nature, like our calibration data.
                                       #
-
-    idx = np.where(abs(W)==max(np.abs(W)))[0][-1]
-    Frequency = abs(freq[idx]) # Frequency in Hz
     period = 1/(Frequency*delta) # represents the number of samples for one cycle of the test signal.
     gmcorrect = (2*np.pi*Frequency)**2/np.sqrt((Rn**2-(2*np.pi*Frequency)**2)**2+(4*h**2*(2*np.pi*Frequency)**2*Rn**2))
 
@@ -159,102 +245,36 @@ def process(infile,outfile,calfile):
 
                                       # gmcorrect is the correction factor for observed pendulum motion 
                                       # vs true ground motion.
-                                      # 
-                                      #
-                                      # At this point, we know the frequency interval, the delta, and we have the arrays 
-                                      # for signal and laser. We can now piecewise adjust the signals for a 3* their period 
-                                      # for DC offset. Adjust sensor and laser for linear trend removal, then apply an 
-                                      # optional filter. Then apply calibration constants to yield units of microvolts 
-                                      # for sensor, and units of microns for the laser position sensor.
-                                      #
-                                      # Next, calculate the integral of the sensor, and the derivative of the laser position 
-                                      # sensor. Take the average of laser/intsensor and sensor/derivlaser to arrive at
-                                      # the sensitivity of the coil.
+                                      # Now compensate the laser signal.
 
-    # print 'Frequency calcuated to ',Frequency,' Hz.' 
+    gmotion = adccal[lchannel]*lasercal*lcalconst/gmcorrect*np.array(laser3)
 
+                                      # Calculate the FFT for the ground motion signal
+    lasfft   = np.fft.fft(gmotion)    # 
+    freqlaser = np.fft.fftfreq(len(laser3),delta) # number of samples and delta is the sample rate
                                       #
-                                      # piece-wise Linear Trend Removal for sensor and laser
-                                      #
-                                      # From point 0 to n periods, use the average of first n periods.
-                                      # Hold average for last n periods of signal
+                                      # Take the rms value of each signal at the main frequency only
                                       #
 
-    pintv = 3                         # number of cycles to average for sliding linear trend removal
-    sensor2 = []
-    laser2 = []
-                                      # period is the number of samples that represent one cycle of the signal:
+    sensor_rms = np.abs(np.sqrt(senfft[idx]**2)/(len(freq)/2))
+    laser_rms = np.abs(np.sqrt(lasfft[idx]**2)/(len(freq)/2))
 
-    for i in range(0,len(sensor)-pintv*int(period)): 
-        senavg = np.mean(sensor[i:i+pintv*int(period)])
-        lasavg = np.mean(laser[i:i+pintv*int(period)])
-        sensor2.append(sensor[i]-senavg)
-        laser2.append(laser[i]-lasavg)
-
-    for i in range(len(sensor)-pintv*int(period),len(sensor)): # Last n periods use a static mean. 
-        sensor2.append(sensor[i]-senavg)
-        laser2.append(laser[i]-lasavg)
-    laser2 = sp.signal.detrend(laser2,type='constant')
-    sensor2 = sp.signal.detrend(sensor2,type='constant')
-
-                                      # Apply the calibration constants
-                                      # Input represents counts of the ADC. 
-                                      # The sensor is likely velocity in microvolts per micron/second.
-                                      # Sensor(counts/micron/sec) * adccal (microvolts/count )
-                                      # Laser requires conversion from counts to microvolts/count, to millivolts.micron 
-                                      # then to ground motion corrected microns.
+                                      # Since the FFT at a single frequency breakpoint is by definition 
+                                      # the energy contributed by a sine at that frequency,
+                                      # the derivative and integral are related by a factor of 2pi*f
                                       #
-                                      # sensor3 = sensor in terms of microvolts / microns/sec * unknown cal factor
-                                      # laser3 in terms of known microns of ground motion
+                                      # Calculate the equivilant rms value of the derivative and integral 
+                                      # of each signal.
+                                      # Integral of sensor = sensor / 2pi*f
+                                      # Derivative of laser = laser * 2pi*f
+                                      # in either case, the ratio works out to sensor_rms/(2pi*f*laser_rms)
 
-    sensor3 = adccal[0]*np.array(sensor2) 
-    laser3 = adccal[3]*lasercal*lcalconst/gmcorrect*np.array(laser2)
-
-                                      # Now calculate the integral of the sensor and the derivative of ground motion
-                                      # Integral limits of integration: time from zero to end of the record
-                                      # integral of sensor over limits of zero to t, of Ydx
-                                      # The function is Ydx area = base * height, where height = Y and base = delta
-
-                                      # Integrate the sensor to yield microvolt/microns * our as-of-yet unknown constant
-                                      #    
-   
-
-    intsensor = []
-    for i in range(1,len(sensor3)+1):
-        intsensor.append(simps(sensor3[0:i],dt[0:i]))
-
-    intsensor = sp.signal.detrend(intsensor,type='linear')
- 
-                                      # Remove the mean to remove DC offset type = 
-                                      # This signal represents the peak-peak voltage signal representing 
-                                      # the sensor response to ground motion at the given frequency.
-
-    derlaser = []
-    derlaser.append(((laser3[0]-laser3[1])*-1)/delta)
-
+    fcal = sensor_rms/(2*np.pi*Frequency*laser_rms) # This is the calibration factor.
                                       #
-                                      # Calculate the derivative of the laser position sensor 
-                                      # (how fast position is changing)
-    derlaser = []
-    derlaser.append(((laser3[0]-laser3[1])*-1)/delta)
-    for i in range(1,len(laser3)-1):
-        derlaser.append(((laser3[i-1]+3*laser3[i]+laser3[i+1])/5-laser3[i-1])/delta)
-    derlaser.append(((laser3[i]+3*laser3[i+1])/4-laser3[i])/delta)
-    derlaser = sp.signal.detrend(derlaser,type='linear')
-
+                                      #     Reset the ground motion back to laser displacement
+                                      #     for output 
                                       #
-                                      # Calculate the calibration ratios using a total rms of each signal.
-                                      #
-
-    cal1 = (np.std(intsensor)/np.std(laser3)) # Calibration constant as calculated via integration of sensor
-    cal2 = (np.std(sensor3)/np.std(derlaser)) # Calibration constant as calculated via derivative of ground motion
-    ccal = (cal1+cal2)/2 # This is the calibration constant at this frequency in uV/micron/sec, which is also V/M/sec
-    confidence = (1-cal1/cal2)*100    # degree of correlation between the two separate calculation methods
-                                      #
-                                      # ccal represents the cal constant as determined by both calculation methods.
-                                      #
-
-    print("ccal (int/dev deviation={0:.1f} %) calculates to: {1:.3f} for frequency {2:.1f} Hz".format(confidence,ccal,Frequency))
+#    laser.rms = laser.rms * gmcorrect
 
                                       #
                                       #     Calculate the phase difference between input signal and the response
@@ -269,14 +289,21 @@ def process(infile,outfile,calfile):
                                       #     Field 4: phase = Phase difference between the cal coil drive signal and the output
                                       #     Field 5:Name of input file (text)
                                       #
-    if (np.abs(confidence) < 15.0):             #
-        with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
-            outrow = csv.writer(csvfile, delimiter = ",",
-                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([Frequency,ccal,confidence,phase,infile])
-    else:
-        print("ccal uncertainty is greater than 15% deviation so frequency {:.1f} Hz will not be written to file.".format(Frequency))                                  #
-                                      #    
+                                      # 
+                                      #
+#    with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+#        outrow = csv.writer(csvfile, delimiter = ",",
+#                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#        outrow.writerow([Frequency,fcal,infile])
+#    print("fcal calculates to: {0:.3f} for frequency {1:.1f} Hz".format(fcal,Frequency))
+        
+#    with open(outlog,'a') as csvfile:
+#        outrow = csv.writer(csvfile, delimiter = ",",
+#                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#        outrow.writerow([Frequency,fcal,infile]) 
+    return(Frequency,sensor_rms,laser_rms,fcal,Rn,h,gmcorrect)
+
+             
                                       
 
 #######################################################################################
@@ -334,12 +361,16 @@ def main():
                 filelist.append(infile)
                 
             else:
+                calfile = sys.argv[1]+"\calcontrol.cal"
                 filelist = os.listdir(sys.argv[1])
+                dir = sys.argv[1]+"\\"
     else:
         filelist = os.listdir(os.getcwd())                 # No switches? No problem. Use the current working directory.
         
-        print " Cal control file:",calfile
-        constant = getconstants(calfile)
+    print " Cal control file:",calfile
+    outlog = outfile+".log"
+
+    constant = getconstants(calfile)
                                                            # 
                                                            # Create the header for the calibration output file.
                                                            # Header contains the station name, ADC cal constants,
@@ -347,46 +378,106 @@ def main():
                                                            # the damping ratio, and the free period frequency.
                                                            #
  
-        with open(outfile,'wb') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+    with open(outfile,'wb') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+        outrow = csv.writer(csvfile, delimiter = ",",
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        outrow.writerow(constant)
+                                                           # Now loop through the directory of csv files to build the
+    frequency = []                                     # calibration curve.
+    sensor = []
+    laser = []
+    calnum = []
+    filenames = []
+    rn = []
+    h = []
+    gm_correct = []
+    print"The length of the file list is {} files.".format(len(filelist))
+
+    for n in range(len(filelist)):                     # Parse through directory for all .csv files
+        if ".csv" in filelist[n]:                      # Skip any files that are not a .csv
+            infile = dir+filelist[n]                       # Set the input file from the file listing if it is a .csv
+            print "Infile set to: ",infile
+            (freq,senrms,lasrms,cal,resonance,damprat,gm_c) = process(infile,calfile) # Process the file and output to outfile based on parameters
+            frequency.append(freq)
+            sensor.append(senrms)
+            laser.append(lasrms)
+            calnum.append(cal)
+            rn.append(resonance)
+            h.append(damprat)
+            gm_correct.append(gm_c)
+            filenames.append(infile)
+
+                                                       # found in calcontrol
+    with open(outfile,'a') as csvfile: # use 'wb' in place of 'a' if you want to overwrite the file.
+        for n in range(len(frequency)):
             outrow = csv.writer(csvfile, delimiter = ",",
                                 quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow(constant)
-                                                           # Now loop through the directory of csv files to build the
-                                                           # calibration curve.
-
-        for n in range(len(filelist)):                     # Parse through directory for all .csv files
-            if ".csv" in filelist[n]:                      # Skip any files that are not a .csv
-                infile = filelist[n]                       # Set the input file from the file listing if it is a .csv
-                print "Infile set to: ",infile
-                process(infile,outfile,calfile)            # Process the file and output to outfile based on parameters
-                                                           # found in calcontrol
-
-    print("output sent to {} ".format(outfile))
+            outrow.writerow([frequency[n],calnum[n],sensor[n],laser[n],rn[n],h[n],gm_correct[n],filenames[n]])
+            print("fcal calculates to: {0:.3f} for frequency {1:.2f} Hz".format(calnum[n],frequency[n]))
+    # Create the output file
+        print("output sent to {} ".format(outfile))
     
                                                            #
                                                            # Now that the file has been created,
                                                            # Bring in the data and plot.                
                                                            #
+
+
+                                          # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
+                                          # Set up the control constants.
+
+    nsearch = 2 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+                                          # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
+                                          # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
+                                          # 3: Grid search for optimum amplitude, damping ratio AND free period
+    coarse_search = 0.10                  # Typically 0.10
+    fine_search = 0.005                   # Typically 0.005
+    nloops = 5                            # Number of iterations through the grid (typically 4 or 5)
+    ngrids = 20                           # Number of steps (typically 20)
+    amp_units = "V*sec/m"
+    amp_label = "Amplitude [" + amp_units + "]"
+    lmult = 2                             # Lower freq. bandpass multiple (typically 2)
+    hmult = 6                             # higher freq. bandpass multiple (typically 6)
+                                          # Gather the relevant information from the output file
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
                                           # and includes the damping ratio, free period frequency, and channel calibration information
                                           # in this order:
-    Station = fdata[0][0][0]              # Station name
+    seismometer = fdata[0][0][0]              # Station name
                                           # fdata[0][0][1] # Channel 0 ADC sensitivity in microvolts / count
                                           # fdata[0][0][2] # Channel 1
                                           # fdata[0][0][3] # Channel 2
                                           # fdata[0][0][4] # Channel 3
                                           # fdata[0][0][5] # Laser position sensor in millivolts/micron
                                           # fdata[0][0][6] # Lcalconstant geometry correction factor
-    h = float(fdata[0][0][7])             # h damping ratio
-    Freeperiod = float(fdata[0][0][8])    # Free period oscillation in Hz  
-    Frequencies = []
-    Sensitivities = []
-    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
-        Frequencies.append(float(fdata[1][i][0]))
-        Sensitivities.append(float(fdata[1][i][1]))
-    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
 
+    msu_damp = float(fdata[0][0][7])      # h damping ratio
+    msu_freep = 1/float(fdata[0][0][8])   # Free period oscillation in Seconds, not Hz (as stored in cal file). 
+    freq_msu = []                         # Initialize the frequency array
+    amp_msu = []                          # Initialize the matching amplitude array
+
+    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
+        freq_msu.append(float(fdata[1][i][0]))     # Field 0 is the frequency
+        amp_msu.append(float(fdata[1][i][1]))      # Field 1 is the average sensitivity
+
+                                #    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
+                                #    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
+
+                                          # Perform the grid search and create the curve
+
+    (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
+     grid_search.find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,\
+     coarse_search,fine_search,nloops,ngrids,lmult,hmult)
+
+                                          # Create the sac poles & zeros file
+
+    sac_pz_file = os.getcwd() + seismometer + '.sacpz' # Set the file name to whatever station name is.
+    grid_search.write_sacpz(sac_pz_file,resp)
+
+                                          # Plot the data for the user.
+
+    grid_search.plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
+    msu_freep,msu_damp,amp_average,amp_label,seismometer, sac_pz_file)
 
 
 #
