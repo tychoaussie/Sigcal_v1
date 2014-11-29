@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140715"
+__version__ = "20141126"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -53,7 +53,7 @@ def getconstants(calcontrol):      # From calcontrol file, retrieve the list of 
                                    # constant[5] = (float) laserres: cal constant for the laser ( mV / micron)
                                    # constant[6] = (float) lcalconst: cal constant for geometry correction factor
                                    # constant[7] = (float) h: Damping ratio for the seismometer as measured by engineer.
-                                   # constant[8] = (float) resfreq: Free period resonance freq. as measured by engineer.
+                                   # constant[8] = (float) resfreq: Free period resonance freq (Hz). as measured by engineer.
     return(constant)
 
 def process(infile,outfile):
@@ -68,18 +68,13 @@ def process(infile,outfile):
         adccal[i] = constant[i+1]     # Calibration constants for the ADC channels as measured by engineer
                                       # for this particular system. Each one is unique.
     laserres = constant[5]            # CALIBRATED value from laser position sensor in mV/micron
-    lcalconst = constant[6]           # Typ. 1.022, for the SM3, based on the geometry of the laser target 
-                                      # and center of coil relative to radius of moment arm
+    lcalconst = constant[6]           # Typ. 0.535, for the SM3, based on the geometry of the laser target 
+                                      # and center of mass relative to radius of moment arm.
+                                      # It is the ratio of distances to center of mass / laser target
     h = constant[7]                   # typically about 0.7 but MUST be accurately measured beforehand!
     resfreq = constant[8]             # Typically between 0.7 and 1.3 Hz. Expressed in Hz, not seconds.
     Rn = np.pi * 2 * resfreq          # Free period as expressed in radians / second                      
     lasercal = laserres/1000          # microns / count from the CALIBRATED laser and CALIBRATED ADC.
-
-
-
-
-
-
 
 
 
@@ -163,15 +158,15 @@ def main():
         constant.append(float(raw_input('Enter the laser resolution cal constant:  ')))
     except ValueError:
         print "Error! Value must be a floating point number."
-        print "Calibration number being set to 0.9932 as a default."
+        print "Calibration number being set to 0.9932 as a default for LK031 laser."
         constant.append(float(0.9932))
 
     try:
         constant.append(float(raw_input('Enter the geometry correction constant:  ')))
     except ValueError:
         print "Error! Value must be a floating point number."
-        print "Calibration number being set to 1.022 as a default."
-        constant.append(float(1.022))
+        print "Calibration number being set to 0.535 as a default for SM3."
+        constant.append(float(0.535))
 
     try:
         constant.append(float(raw_input('Enter the measured damping ratio h:  ')))

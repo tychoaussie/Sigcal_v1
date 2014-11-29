@@ -215,7 +215,8 @@ def process(infile,calfile):
                 else:
                     if flag == True:
                         nn +=1
-            
+        if nn>4:
+            nn = 4    
         hh = []
         for n in range(1,nn):              # calculate a list of damping ratios starting with the second local max
             hh.append(np.log(np.abs(float(Z[n-1])/Z[n])) / np.sqrt(np.square(np.pi)+np.log(np.abs(float(Z[n-1])/Z[n]))))
@@ -224,7 +225,7 @@ def process(infile,calfile):
         print hh 
     hm = np.median(hn)
     ha = np.mean(hn)
-    print '\n\n The median damping ratio for your {0} impulses = {1:0.3f} . '.format(impnum,h)
+    print '\n\n The median damping ratio for your {0} impulses = {1:0.3f} . '.format(impnum,hm)
     print '\n The mean damping ratio for your {0} impulses = {1:0.3f} . '.format(impnum,ha)
 
     
