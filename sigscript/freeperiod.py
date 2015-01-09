@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140716"
+__version__ = "20150105"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -135,8 +135,8 @@ def process(infile,calfile):
     delta = ((float(fdata[1][len(fdata[1])-1][12])+float(fdata[1][len(fdata[1])-1][15]))-(float(fdata[1][0][12])+float(fdata[1][0][15])))/len(fdata[1])
 
         # laser = sp.signal.symiirorder1(laser,4,.8) # Adjust the signal for DC bias of laser, then filter.
-    lasermean = np.mean(laser[(len(laser)-2048):len(laser)]) # Take the DC bias measurement fm end of signal
-    laser[:] = [x-int(lasermean) for x in laser]
+#    lasermean = np.mean(laser[(len(laser)-2048):len(laser)]) # Take the DC bias measurement fm end of signal
+#    laser[:] = [x-int(lasermean) for x in laser]
                                       #
                                       # I am not yet able to auto process these files
                                       # Therefore we'll open the graph, plot the whole waveform
@@ -153,7 +153,7 @@ def process(infile,calfile):
     start =int(raw_input('Enter the estimated sample number of the beginning of the impulse  '))
     # print 'start = {}'.format(start)
 #    end =int(raw_input('Enter the estimated sample number of the ending of the impulse train '))
-    end = start+8192
+    end = start+4096
         ##########################################################
                                       # Find the beginning and ending of the waveform and return those values
                                       # Using the derivative, flag the point where derivative is at its highest magnitude.
@@ -183,7 +183,7 @@ def process(infile,calfile):
                                       #
 
 
-    sense = laser[start:end]   # 2466:(2466+4096)]
+    sense = signal.detrend(laser[start:end])   # 2466:(2466+4096)]
                                       # sense = sense[:]
     N = len(sense)
     W    = np.fft.fft(sense)
