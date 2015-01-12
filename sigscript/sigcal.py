@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20141125"
+__version__ = "20150112"
 __license__ = "MIT"
 
 # NEW VERSION for testing revised signal processing techniques.
@@ -28,6 +28,8 @@ __license__ = "MIT"
 # - Rev b: Constrained the grid search to use the MSU measured free period AND damping
 # when doing a grid search because of demonstrated dependency on damping ratio as
 # affecting the results of the initial sensitivity curve. Improve at a later date.
+
+# 12jan2015 - minor bug fixes to file paths on output
 
 
 
@@ -475,7 +477,7 @@ def main():
 
                                           # Create the sac poles & zeros file
 
-    sac_pz_file = os.getcwd() + seismometer + '.sacpz' # Set the file name to whatever station name is.
+    sac_pz_file = os.getcwd() +'\\'+ seismometer + '.sacpz' # Set the file name to whatever station name is.
     grid_search.write_sacpz(sac_pz_file,resp)
 
                                           # Plot the data for the user.
