@@ -1,0 +1,249 @@
+__author__ = "Daniel Burk <burkdani@msu.edu>"
+__version__ = "20150218"
+__license__ = "MIT"
+
+
+
+import os
+import sys
+import csv
+                                           #from scipy import signal
+                                           #from scipy.integrate import simps
+                                           #import pylab as plt
+import numpy as np
+                                           #import scipy as sp
+import string                              # We use the string.find utility for file naming
+import time                                # we use the sleep function to enable conversion of the DAT
+import subprocess                          # used for the execution of command-line programs
+from obspy.core import read, Trace, Stream, UTCDateTime
+from obspy.sac import SacIO
+
+
+class csv2sac(object):
+    '''csv2sac.py is a utility for batch converting Symmetric Research csv into sac files
+       for a whole directory. It uses the 2010 build of dat2asc.exe as provided from symmetric
+       and converts the file, followed by a rename of the csv file. It has only one command line
+       switch, and that is to point it at a directory for converting the dat files.
+
+       The program will convert non-sequential DAT files into separate csv files, and all
+       sequential files will be concatenated into a single csv file. It is therefore important
+       to rename or move any sequential csv file that you do not wish to include within the csv.
+        
+       One critical requirement is that dat2asc.exe (2010 build) exists in the
+       directory as such: "c:\Python27\dat2asc.exe"
+
+       Syntax: dat2csv target_directory  
+
+       
+
+       Typical useage:
+       <ObsPy> C:\Python27\scripts> python Dat2csv.py c:/calibration/station/ 
+
+    '''
+
+
+                            # Function getcal: Retrieve the calibration control file
+def getcal(calcontrol): 
+    # calcontrol needs to include calibration constants as well as the station name and the channel name, and the particular constant for that channel.
+    # Thus a third line is necessary that specifies the channel identifier and the channel assignment of that channel.
+    # Channel name is located in the top row already, and it's position is associated with the sensitivity. So the third row designates the UUT and the
+    # laser position channel.
+    with open(calcontrol,'r') as fin:
+        list = csv.reader(fin)
+        rowcnt=0
+        cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3]
+        stack = []
+        header = []
+        calconstants = []
+        selection = []
+        for row in list:
+            stack.append(row)
+        header = stack[0]
+        calconstants = stack[1]
+        if len(stack)==3:# old calibration file format, so prompt the user for the appropriate channel assignments.
+            selection = stack[2]
+        else:
+            for i in range(0,4):
+                print "\n\nNo channels selected for calibration in cal control file."
+            for i in range(0,4):
+                print"Note: Channel {0} is listed as channel number {1}".format(header[i+1],i)
+        
+            selection.append(int(raw_input('Choose the channel number representing the unit under test:  ')))
+            selection.append(int(raw_input('Choose the channel number representing the laser position sensor:  ')))
+
+        cconstant[0] = calconstants[0]        # (test) Station name
+        cconstant[1] = header[1]              # (text) Channel name for CH0
+        cconstant[2] = float(calconstants[1]) # (float) adccal[0]: cal constant for ch 0 (microvolts / count)
+        cconstant[3] = header[2]              # (text) Channel name for CH1
+        cconstant[4] = float(calconstants[2]) # (float) adccal[1]: cal constant for ch 1 (microvolts / count)
+        cconstant[5] = header[3]              # (text) Channel name for CH2
+        cconstant[6] = float(calconstants[3]) # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
+        cconstant[7] = header[4]              # (text) Channel name for CH3
+        cconstant[8] = float(calconstants[4]) # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
+        cconstant[9] = float(calconstants[5]) # (float) laserres: cal constant for the laser ( mV / micron)
+        cconstant[10] = float(calconstants[6])# (float) lcalconst: cal constant for geometry correction factor
+        cconstant[11] = float(calconstants[7])# (float) h: Damping ratio for the seismometer as measured by engineer.
+        cconstant[12] = float(calconstants[8])# (float) resfreq: Free period resonance freq. as measured by engineer.
+        cconstant[13] = int(selection[0])     # channel number of channel being tested
+        cconstant[14] = int(selection[1])     # channel number of the laser position sensor data
+    return(cconstant)
+
+
+def load(infile): # Load the csv file
+    with open(infile,'r') as fin:
+        list = csv.reader(fin)
+        rowcnt=0
+        stack = []
+        header = []
+        for row in list:
+#
+#          Bring in the data and create a list of lists, each of which
+#           corresponds with a given sample.
+#
+            if rowcnt == 0:
+                header.append(row)
+            else:
+                stack.append(row)
+            rowcnt = 1
+    return(header,stack)
+
+
+
+                        # process dat2sac
+                        # Converts a dat file into a sac file format
+
+def csv2sac(infile,calcontrol):
+#
+    Channel = ["","","",""]
+    units = ['Counts  ','Counts  ','Counts  ','Counts  ']
+    comment = ['Velocity','Velocity','Velocity','Velocity']
+    (header,stack) = load(infile)
+#    header = fdata[0]
+#    stack = fdata[1]
+    datetime = stack[0][13]+","+stack[0][14]
+    Frac_second = float(stack[0][15])
+    St_time = time.strptime(datetime,"%Y/%m/%d,%H:%M:%S")
+    cconstant = getcal(calcontrol) # This will need to be fixed when using targeted directories.
+    Station = cconstant[0]
+    outfile = infile[0:string.rfind(infile,'.')]
+    for i in range(0,4):
+        Channel[i]=cconstant[(2*i)+1]
+
+    Samplecount = len(stack)
+    print "Sample count stands at {} samples.".format(Samplecount)
+    Delta = (float(stack[len(stack)-1][12])-float(stack[0][12]))/len(stack)
+    sacfile = outfile[:string.find(infile,'.')]+'{}'.format(i)+'.sac'
+        #
+        # stack[1] = channel 1 time history
+        # .
+        #
+        # stack[4] = channel 4 time history
+        #
+
+
+    for i in range(0,4): # Build each channel
+        t = SacIO()
+        b = np.arange(len(stack),dtype=np.float32)   #   Establishes the size of the datastream
+        for n in range(len(stack)):        #   Load the array with time-history data
+            b[n] = np.float32(stack[n][i+1]) #   Convert the measurement from counts to volts.
+        t.fromarray(b)
+
+             #                     set the SAC header values
+        t.SetHvalue('scale',1.00) # Set the scale for each channel. This one is important to declare.
+        t.SetHvalue('delta', Delta)
+        t.SetHvalue('nzyear',St_time.tm_year)
+        t.SetHvalue('nzjday',St_time.tm_yday)
+        t.SetHvalue('nzhour',St_time.tm_hour)
+        t.SetHvalue('nzmin',St_time.tm_min)
+        t.SetHvalue('nzsec', St_time.tm_sec)
+        t.SetHvalue('nzmsec', int(Frac_second*1000))
+        t.SetHvalue('kstnm',Station)
+        t.SetHvalue('kcmpnm',Channel[i])
+        t.SetHvalue('idep',4) # 4 = units of velocity (in Volts)
+                              # Dependent variable choices: (1)unknown, (2)displacement(nm), 
+                              # (3)velocity(nm/sec), (4)velocity(volts), 
+                              # (5)nm/sec/sec
+        t.SetHvalue('kinst',comment[i-1])       # Instrument type
+        t.SetHvalue('knetwk','CSV2SAC ')         # Network designator
+        t.SetHvalue('kuser0',units[i-1])        # Place the system of units into the user text field 0
+        t.WriteSacBinary(outfile+"_{}.sac".format(Channel[i]))
+        print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
+
+  
+
+
+def convert(infile):
+    print infile
+    outfile = infile[string.rfind(infile,"\\")+1:string.find(infile,'.')]+".csv"
+    dat2csvfile = infile[:string.rfind(infile,"\\")+1]+"Dat2asc-301-Data.csv"
+    calcontrol = infile[:string.rfind(infile,"\\")+1]+"calcontrol.cal"
+    subprocess.call(["c:\\Python27\\dat2asc.exe",infile,"csv"])
+    print dat2csvfile
+    print outfile
+
+    subprocess.call(["ren",dat2csvfile,outfile],shell=True)
+    csv2sac(outfile,calcontrol)
+
+
+def main():
+                                      #           MAIN PROGRAM BODY
+                                      #  Parse the command line switches
+                                      # Commmand example: c:\Python27>Python.exe Sigcal.py c:\seismo\caldata\momo
+                                      # where momo is the working directory containing the csv files
+                                      # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
+                                      # The third option can designate an optional location for the calcontrol file.
+                                      #
+    optioncount = len(sys.argv)
+    outputfile_defined = False
+    filelist = []
+    dir=""
+    infile = ""
+    directory = os.getcwd()
+    directory = directory.replace("/","\\")
+    print "This is the directory name as taken from the computer:",directory
+    if optioncount > 1:
+        
+        
+        directory = sys.argv[1]
+        directory = directory.replace("/","\\")
+        if directory[-1:] !="\\":
+                directory = directory+"\\"
+        try:
+            filelist = os.listdir(directory)            
+        except:
+            print "Command line parameter must consist of a valid directory. {}".format(directory)
+            sys.exit(0)
+    else:
+        if directory[-1:] !="\\":
+                directory = directory+"\\"
+        filelist = os.listdir(directory)
+    
+                                           
+    
+    if ".dat" in filelist[0]:
+        infile = directory+filelist[0]
+        convert(infile)
+
+    for n in range(1,len(filelist)):                                
+        if ".dat" in filelist[n]:
+            try:                    
+                filenum1= int(filelist[n][string.rfind(filelist[n],'.')-8:string.rfind(filelist[n],'.')])
+                try: 
+                    filenum0= int(filelist[n-1][string.rfind(filelist[n-1],'.')-8:string.rfind(filelist[n-1],'.')]) # If 
+                    if ((filenum1-filenum0)!=1):                    # Skip sequential files that have likely been converted with prev. file
+                        infile = directory+filelist[n]
+                        print "Converting: ",infile
+                        convert(infile)
+                except:                                             # previous file failed but this one does not.
+                    infile = directory+filelist[n]     
+                    print "Converting: ",infile
+                    convert(infile)
+            except:
+                print "File {} does not comply to standard symmetric research naming formats and must be manually converted.".format(filelist[n])
+
+#
+# Check and run the main function here:
+#
+if __name__ == '__main__':
+  main()
+ 
