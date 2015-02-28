@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150219"
+__version__ = "20150228"
 __license__ = "MIT"
 
 # NEW VERSION for testing revised signal processing techniques.
@@ -34,8 +34,11 @@ __license__ = "MIT"
 # Version 2: 
 #
 # 09Feb2015 - Integrate Grid search into the main code space
-# Bring in sac file support.
-# Rewrite the command line switch sequence
+# Bring in sac file support. sac option also supports miniseed.
+# In order to use the files, the station name, the channel name
+# (as described in calcontrol.cal) must be in the file name for
+# sigcal to find it.
+# Rewrite the command line switch sequence.
 #
 
 
@@ -159,9 +162,9 @@ def getoptions():
         else:
             station = 0
 
-        
     calfile = directory+"calcontrol.cal"
     outfile = directory+"calibration_output.cal"
+    cconstant = getcal(calfile)
     buffer = os.listdir(directory)
 
     for i in range(0,len(buffer)):
@@ -172,7 +175,13 @@ def getoptions():
         else:
             filtype = 'unk'
     
-        if (filtype == filetype) or (stname in buffer[i]):
+        if (         (filtype == filetype) or (stname in buffer[i]) \
+            or (cconstant[0] in buffer[i]) or (cconstant[1] in buffer[i]) \
+            or (cconstant[3] in buffer[i]) or (cconstant[5] in buffer[i]) \
+            or (cconstant[7] in buffer[i])                             ) \
+                                         and \
+            ( ('.sacpz' not in buffer[i]) and ('png' not in buffer[i])  ):
+
             filelist.append(buffer[i])
 
     return(directory,filelist,calfile,outfile,filetype)
@@ -184,9 +193,13 @@ def getoptions():
 def sacparse(wdir,filelist,senchan,lsrchan):
     sensorfiles = []
     laserfiles = []
+    print "senchan set to: {0} and lstchan set to: {1} \n File list contains {2} items.".format(senchan,lsrchan,len(filelist))
     for i in range(0,len(filelist)):
+#        print filelist[i]
         if senchan in filelist[i]:
             sensorfiles.append((wdir+filelist[i]))
+#        else: 
+#            print "senchan not found in {}".format(filelist[i])
         if lsrchan in filelist[i]:
             laserfiles.append((wdir+filelist[i]))
     sensorfiles.sort(key=str.lower)
@@ -283,8 +296,8 @@ def getcal(calcontrol):
             for i in range(0,4):
                 print"Note: Channel {0} is listed as channel number {1}".format(header[i+1],i)
         
-            selection.append(int(raw_input('Choose the channel number representing the unit under test:  ')))
-            selection.append(int(raw_input('Choose the channel number representing the laser position sensor:  ')))
+            selection.append(int(raw_input('Choose the channel number for the unit under test:  ')))
+            selection.append(int(raw_input('Choose the channel number for the laser position sensor:  ')))
 
         cconstant[0] = calconstants[0]        # (test) Station name
         cconstant[1] = header[1]              # (text) Channel name for CH0
@@ -307,46 +320,7 @@ def getcal(calcontrol):
 
 
 
-#                                             Function plot_curve
-# def plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h):
-    
  
-    # prepare data points
-    # plot it
-    
-#    plt.loglog(Frequencies, Sensitivities, "*")     # "*" means draw asterisk instead of lines
-#    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz             Damping Ratio = {1:.3f}".format(Freeperiod,h))
-#    plt.ylabel("Sensitivity in V/m/sec")
-#    plt.title("Sensitivity curve for station "+Station+" on "+time.asctime())
-#    plt.annotate("Free period = {:.1f} Hz".format(Freeperiod), xy=(0.02,0.02),xytext=(0.02,0.02))
-#    plt.annotate("Damping Ratio = {:.3f}".format(h), xy=(1,.02),xytext=(1,.02))
-#    plt.annotate("* = sensitivity measurement points", xy=(10,5), xytext=(3,1),
-#                 arrowprops=dict(facecolor='black',shrink=0.05))
-
-#    plt.show()
-
-
-
-#def plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h):
-    
- 
-    # prepare data points
-    # plot it
-    
-#    plt.loglog(Frequencies, Calint, "*", Frequencies,Calderiv,"+")     # "*" means draw asterisk instead of lines
-#    plt.xlabel("Free period = {0:.2f} Hz           Frequency in Hz             Damping Ratio = {1:.3f}".format(Freeperiod,h))
-#    plt.ylabel("Sensitivity in V/m/sec")
-#    plt.title("Sensitivity curve for station "+Station+" on "+time.asctime())
-#    plt.annotate("Free period = {:.1f} Hz".format(Freeperiod), xy=(0.02,0.02),xytext=(0.02,0.02))
-#    plt.annotate("Damping Ratio = {:.3f}".format(h), xy=(1,.02),xytext=(1,.02))
-#    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
-#                 arrowprops=dict(facecolor='black',shrink=0.05))
-#    plt.annotate("* = sensitivity from int(sensor)/laser", xy=(10,5), xytext=(3,1),
-#                 arrowprops=dict(facecolor='black',shrink=0.05))
-
-
-#    plt.show()
-    
 
 
 
@@ -528,13 +502,17 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
 def write_sacpz(fname, resp):
 
 # resp is the obspy data structure holding poles, zeros, and scale factor
-
+    print "Writing the SAC poles and zeros file:\n"
     with open(fname,'w') as f:
         f.write("ZEROS {}\n".format(len(resp['zeros']) + 1 ))
+        print "ZEROS: {}".format(len(resp['zeros']) + 1 )
         f.write("POLES {}\n".format(len(resp['poles'])))
+        print "POLES {}\n".format(len(resp['poles']))
         for pole in resp['poles']:
             f.write("{:e} {:e}\n".format(pole.real, pole.imag))
+            print "real:{:e} Imaginary:{:e}".format(pole.real, pole.imag)
         f.write("CONSTANT {:e}".format(resp['gain']))
+        print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
 
     spz = "SAC pole-zero file is named %s" % ( fname )
     print ( "\n" )
@@ -594,8 +572,8 @@ def find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,coars
 
     count = 0
     amp_average = 0.
-    lmult = lmult*msu_freep
-    hmult = hmult*msu_freep
+    lmult = lmult/msu_freep # make it a multiplier of freeperiod in Hz (lowest)
+    hmult = hmult/msu_freep                                         # (Highest)
     
     for i, freq in enumerate(freq_msu):
         if ( freq > lmult) and (freq < hmult):  
@@ -795,12 +773,12 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
     damp_per = 100. * ( abs ( best_damp - msu_damp ) / msu_damp )
     scale_per = 100. * ( abs ( best_scale - amp_average ) / amp_average )
 
-    tfp = "free per = %.3f sec (%.2f%% MSU: %.3f)" % ( best_freep, freep_per, msu_freep )
+    tfp = "free period = %.3f Hz (%.2f%% MSU: %.3f)" % ( 1./best_freep, freep_per, 1./msu_freep )
     print ( "\n" )
     print tfp
     tdr = "damping = %.3f (%.2f%% MSU: %.3f)" % ( best_damp, damp_per, msu_damp )
     print tdr
-    tsf = "scale = %.2f (%.2f%% average amp: %.2f)" % ( best_scale, scale_per, amp_average )
+    tsf = "scale = %.2f V.m/sec( Avg. amp: %.2f)" % ( best_scale, amp_average )
     print tsf
     spz = "SAC pole-zero file is named %s" % ( sac_pz_file )
 
@@ -939,7 +917,7 @@ def main():
 
 #    print " calibration file: '{}'".format(calfile)
 #    print " output file : '{}'".format(outfile)
-    print " The selected file type is: {} ".format(filetype)    
+#    print " The selected file type is: {} ".format(filetype)    
     print " Cal control file: {}\n\n".format(calfile)
 #    print " The length of the file list is {} files.".format(len(filelist))
 #    for i in range(0,len(filelist)):
@@ -1050,7 +1028,7 @@ def main():
             print("fcal calculates to: {0:.3f} for frequency {1:.2f} Hz".format(calnum[n],frequency[n]))
 
          
-        print("output sent to {} ".format(outfile))
+        print("output sent to {} \n\n".format(outfile))
     
 
                                            
@@ -1059,19 +1037,38 @@ def main():
                                           #
                                           # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
                                           # Set up the control constants.
+    print"Grid search will iterate through several scenarios in order to find "
+    print"a best fit poles & zeros combination to describe the sensitivity curve."
+    print"\nThere are several options for this search:"
+    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
+    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
+    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
+    print"Option 3: Optimize for amplitude, damping ratio and free period"
+    print"\n Most calibrations are best served with option 1.\n"
 
-    nsearch = 1 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
+    if (Inputstring == ""):
+	Inputstring = 2        # use the default
+    nsearch = int(Inputstring) # use measured freeperiod 
+					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
                                           # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
                                           # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
                                           # 3: Grid search for optimum amplitude, damping ratio AND free period
     coarse_search = 0.10                  # Typically 0.10
     fine_search = 0.005                   # Typically 0.005
-    nloops = 5                            # Number of iterations through the grid (typically 4 or 5)
-    ngrids = 20                           # Number of steps (typically 20)
+    nloops = 6                            # Number of iterations through the grid (typically 4 or 5)
+    ngrids = 21                           # Number of steps (typically 20)
     amp_units = "V*sec/m"
     amp_label = "Amplitude [" + amp_units + "]"
-    lmult = 2                             # Lower freq. bandpass multiple (typically 2)
-    hmult = 5                             # higher freq. bandpass multiple (typically 6)
+
+    Inputstring = raw_input("What is the lower bandpass multiple for the grid search? (I suggest 0.2)")
+    if (Inputstring == ""):
+	Inputstring = "0.2"        # use the default    
+    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
+    Inputstring = raw_input("what is the upper bandpass multiple? (I sugggest 5.0)")
+    if (Inputstring == ""):
+        Inputstring = "5.0"
+    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
                                           # Gather the relevant information from the output file
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile

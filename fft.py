@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150225"
+__version__ = "20140716"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -58,9 +58,9 @@ def load(infile):
 
                                    #                       Function getconstants:
 
-#def getconstants(calcontrol):      # From calcontrol file, retrieve the list of constants 
-#    constants = load(calcontrol)   # that relate these measurements to the real world.
-#    constant = constants[1][0]        # constants[0] contains headers that we don't really use
+def getconstants(calcontrol):      # From calcontrol file, retrieve the list of constants 
+    constants = load(calcontrol)   # that relate these measurements to the real world.
+    constant = constants[1][0]        # constants[0] contains headers that we don't really use
                                    # constant[0] = (text) Station: 'station name'
                                    # constant[1] = (float) adccal[0]: cal constant for ch 0 (microvolts / count)
                                    # constant[2] = (float) adccal[1]: cal constant for ch 1 (microvolts / count)
@@ -70,7 +70,7 @@ def load(infile):
                                    # constant[6] = (float) lcalconst: cal constant for geometry correction factor
                                    # constant[7] = (float) h: Damping ratio for the seismometer as measured by engineer.
                                    # constant[8] = (float) resfreq: Free period resonance freq. as measured by engineer.
-#    return(constant)
+    return(constant)
 
 
 def scatter_comparison():
@@ -104,34 +104,38 @@ def graph_curve2(X,Y,Ylabel,Y1,ylabel1):
     plt.ylabel("Counts")
     plt.show()
 
-def process(infile):
+def process(infile,calfile):
 
     fdata = load(infile)     # Load the infile currently loaded with 1 Hz data
     header = fdata[0]
     adccal = [1.0,1.0,1.0,1.0]
-    Station = raw_input('Please enter the station name. ')
-    laserchan = int(raw_input('\n\nWhich channel was used to record the laser?(ch 0 through ch3) '))
-    sensorchan = int(raw_input('\nWhich channel was used to record the sensor?(ch0 through ch3) '))
 
-#    constant = getconstants(calfile)         # Retrieve the constants from the file
+    constant = getconstants(calfile)         # Retrieve the constants from the file
 
-#    Station = constant[0]                    # Name of Station under test
-#    for i in range(0,4):
-#        adccal[i] = float(constant[i+1])     # Calibration constants for the ADC channels as measured by engineer
+    Station = constant[0]                    # Name of Station under test
+    for i in range(0,4):
+        adccal[i] = float(constant[i+1])     # Calibration constants for the ADC channels as measured by engineer
                                              # for this particular system. Each one is unique.
-#    laserres = float(constant[5])            # CALIBRATED value from laser position sensor in mV/micron
-#    lcalconst = float(constant[6])           # Typ. 1.022, for the SM3, based on the geometry of the laser target 
+    laserres = float(constant[5])            # CALIBRATED value from laser position sensor in mV/micron
+    lcalconst = float(constant[6])           # Typ. 1.022, for the SM3, based on the geometry of the laser target 
                                              # and center of coil relative to radius of moment arm
-#    h = float(constant[7])                   # typically about 0.7 but MUST be accurately measured beforehand!
-#    resfreq = float(constant[8])             # Typically between 0.7 and 1.3 Hz. Expressed in Hz, not seconds.
-#    Rn = (np.pi * 2.0 * resfreq)             # Free period as expressed in radians / second                      
-#    lasercal = laserres/1000                 # microns / count from the CALIBRATED laser and CALIBRATED ADC.
+    h = float(constant[7])                   # typically about 0.7 but MUST be accurately measured beforehand!
+    resfreq = float(constant[8])             # Typically between 0.7 and 1.3 Hz. Expressed in Hz, not seconds.
+    Rn = (np.pi * 2.0 * resfreq)             # Free period as expressed in radians / second                      
+    lasercal = laserres/1000                 # microns / count from the CALIBRATED laser and CALIBRATED ADC.
                                              # Parse out the sensor and laser data
-    sensor = [] 
-    laser = []
+#    sensor = [] 
+#    laser = []
+    ch0 = []
+    ch1 = []
+    ch2 = []
+    ch3 = []
     for i in range(0,len(fdata[1])):
-        sensor.append(int(fdata[1][i][sensorchan+1], base=10)) # Channel 2 is sensor
-        laser.append(int(fdata[1][i][laserchan+1], base=10))# Channel 1 is laser
+        ch0.append(int(fdata[1][i][1], base=10))
+        ch1.append(int(fdata[1][i][1], base=10))
+        ch2.append(int(fdata[1][i][1], base=10))
+        ch3.append(int(fdata[1][i][1], base=10))
+#        laser.append(int(fdata[1][i][4], base=10))
 
                                              # Calculate the sample period based on the timing channels (in seconds)
 
@@ -147,17 +151,38 @@ def process(infile):
                                       # Then we'll process frequency from there.
 
 
-    x = []
-    for i in range (0,len(laser)):
-        x.append(i)
-    plt.plot(x,laser)
-    plt.show()
+#    x = []
+#    for i in range (0,len(laser)):
+#        x.append(i)
+#    plt.plot(x,laser)
+#    plt.show()
 
-    start =int(raw_input('Enter the estimated sample number of the beginning of the impulse  '))
-  
-    end = start+4096
+#    start =int(raw_input('Enter the estimated sample number of the beginning of the impulse  '))
+    # print 'start = {}'.format(start)
+#    end =int(raw_input('Enter the estimated sample number of the ending of the impulse train '))
+#    end = start+8192
         ##########################################################
+                                      # Find the beginning and ending of the waveform and return those values
+                                      # Using the derivative, flag the point where derivative is at its highest magnitude.
+                                      # This should be the point of onset for the first impulse.
+#    print np.mean(laser),len(laser)
+#     lgrad = np.array(laser,dtype=np.float)                          #
+#    lgrad = derivative(laser)
+    #  lgrad2 = np.gradient(lgrad,80)
+#    lgfilt = sp.signal.symiirorder1(lgrad,4,.8) 
+                                      # clean up the derivative a little
+#    dg = [] 
+                                      # Create an x axis that represents elapsed time in seconds. 
+                                      # delta = seconds per sample, i represents sample count
+#    for i in range(0,len(laser)):
+#        dg.append(i*delta)
 
+#    start = (np.where(abs(lgfilt)==max(np.abs(lgfilt)))) # return the element number of highest derivative
+
+#    print "Start of waveform is calculated as occurring at sample {} . ".format(start)
+#    print start[0][0]    
+
+    
 
     ##########################################################
                                       #            
@@ -165,11 +190,18 @@ def process(infile):
                                       #
 
 
-    sense = signal.detrend(laser[start:end])   # 2466:(2466+4096)]
+#    sense = laser[start:end]   # 2466:(2466+4096)]
                                       # sense = sense[:]
-    N = len(sense)
-    W    = np.fft.fft(sense)
-    freq = np.fft.fftfreq(len(sense),delta) 
+#   N = len(sense)
+    W0    = np.fft.fft(ch0)
+    W1    = np.fft.fft(ch1)
+    W2    = np.fft.fft(ch2)
+    W3    = np.fft.fft(ch3)
+    F0 = np.fft.fftfreq(len(ch0),delta)
+    F1 = np.fft.fftfreq(len(ch1),delta)
+    F2 = np.fft.fftfreq(len(ch2),delta)
+    F3 = np.fft.fftfreq(len(ch3),delta)
+
                                       # First value represents the number of samples and delta is the sample rate
 
                                       #
@@ -178,19 +210,19 @@ def process(infile):
                                       # in nature, like our calibration data.
                                       #
 
-    idx = np.where(abs(W)==max(np.abs(W)))[0][-1]
-    Frequency = abs(freq[idx])        # Frequency in Hz
-    print Frequency, delta
-    period = 1/(Frequency*delta)      # represents the number of samples for one cycle of the test signal.
+#   idx = np.where(abs(W)==max(np.abs(W)))[0][-1]
+#   Frequency = abs(freq[idx])        # Frequency in Hz
+#   print Frequency, delta
+#   period = 1/(Frequency*delta)      # represents the number of samples for one cycle of the test signal.
 
                                       # gmcorrect = (2*np.pi*Frequency)**2/np.sqrt((Rn**2-(2*np.pi*Frequency)**2)**2+(4*h**2*(2*np.pi*Frequency)**2*Rn**2))
                                       #
                                       # create an axis representing time.
                                       #
 
-    dt = [] # Create an x axis that represents elapsed time in seconds. delta = seconds per sample, i represents sample count
-    for i in range(0,len(sense)):
-        dt.append(i*delta)
+#   dt = [] # Create an x axis that represents elapsed time in seconds. delta = seconds per sample, i represents sample count
+#   for i in range(0,len(sense)):
+#       dt.append(i*delta)
 
                                       # gmcorrect is the correction factor for observed pendulum motion 
                                       # vs true ground motion.
@@ -201,13 +233,13 @@ def process(infile):
                                       # for DC offset. Adjust sensor and laser for linear trend removal, then apply an 
                                       # optional filter. Then apply calibration constants to yield units of microvolts 
                                       # for sensor, and units of microns for the laser position sensor.
-                                      #
-    x = []
-    for i in range(0,len(sense)):
-        x.append(i*delta)
-    graph_curve(x,sense,Frequency)
+    for j in range(0,4):                                      #
+        x = []
+        for i in range(0,len(sense)):
+            x.append(i*delta)
+        graph_curve(x,sense,Frequency)
 
-    print 'Frequency calculated to ',Frequency,' Hz.' 
+        print 'Frequency calculated to ',Frequency,' Hz.' 
 
 
 
@@ -227,33 +259,28 @@ def main():
     outputfile_defined = False
     filelist = []
     dir=""
-#    infile = "c:\Python27\atest\freeperiod\open_free33.csv"
-    outfile = os.getcwd()+"\calibration_freeperiod_report.cal"
+
+    outfile = os.getcwd()+"\fft.cal"
     calfile = os.getcwd()+"\calcontrol.cal"
 
     if optioncount > 1:
 
-
-           #            
+           
         if optioncount == 2:
-#            calfile = os.getcwd()+"\calcontrol.cal"
-
+            calfile = os.getcwd()+"\calcontrol.cal"
 
             if "." in sys.argv[1]:
                 infile = sys.argv[1]
-#                filelist.append(infile)
-                
-#            else:
-#                filelist = os.listdir(sys.argv[1])
+
     else:
         filelist = os.listdir(os.getcwd())                 # No switches? No problem. Use the current working directory.
         infile = filelist[0]
 
 
         print " This program requires that you input a file representing the free period resonance."
-#        constant = getconstants(calfile)
+        constant = getconstants(calfile)
     
-    process(infile)                                                     
+    process(infile,calfile)                                                     
 
 
 #
