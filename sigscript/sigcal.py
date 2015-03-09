@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150228"
+__version__ = "20150303"
 __license__ = "MIT"
 
 # NEW VERSION for testing revised signal processing techniques.
@@ -39,7 +39,7 @@ __license__ = "MIT"
 # (as described in calcontrol.cal) must be in the file name for
 # sigcal to find it.
 # Rewrite the command line switch sequence.
-#
+# 3/3/2015 - include css3.0 file support
 
 
 
@@ -138,7 +138,7 @@ def getoptions():
     directory = os.getcwd()
     if ('\\' not in directory[-1:]) and ('/' not in directory[-1:]):
                 directory = directory+'\\'
-    filetype = 'csv' # Default file type
+    filetype = 'sac' # Default file type. sac covers sac, miniseed.
     filelist = []
     station = 0
     stname = 'unk'
@@ -149,6 +149,10 @@ def getoptions():
 #        print "Setting the file type to csv"
         if 'sac' in string.lower(sys.argv[i]):
             filetype = 'sac'
+        if 'msd' in string.lower(sys.argv[i]):
+            filetype = 'sac'
+        if 'css' in string.lower(sys.argv[i]):
+            filetype = 'css'
         if ('\\' in sys.argv[i]) or ('/' in sys.argv[i]):
             if ('\\' in sys.argv[i][-1:]) or ('/' in sys.argv[i][-1:]):
                 directory = sys.argv[i]
@@ -168,10 +172,13 @@ def getoptions():
     buffer = os.listdir(directory)
 
     for i in range(0,len(buffer)):
-        if '.csv' in buffer[i]:
+        if '.csv' in string.lower(buffer[i]):
             filtype = 'csv'
-        elif ('.sac' in buffer[i] and '.sacpz' not in buffer[i]):
+        elif ('.sac' in string.lower(buffer[i]) and '.sacpz' not in string.lower(buffer[i])):
             filtype = 'sac'
+        elif ('.wfd' in string.lower(buffer[i])):
+            filtype = 'css'
+            print "A wfd file was found within the directory and filtype set to css."
         else:
             filtype = 'unk'
     
@@ -183,6 +190,7 @@ def getoptions():
             ( ('.sacpz' not in buffer[i]) and ('png' not in buffer[i])  ):
 
             filelist.append(buffer[i])
+    print filelist
 
     return(directory,filelist,calfile,outfile,filetype)
 
@@ -267,6 +275,20 @@ def csvload(infile,senchan,lsrchan):
 
 
 
+                                # support for css data format #
+
+def cssload(infile,senchan,lsrchan):
+
+    cs = read(infile, format = "css")
+
+    delta = cs[0].stats.delta
+    for i in range(len(cs)):
+        if string.lower(senchan) == string.lower(cs[i].stats.channel):
+            sensor = cs[i].data
+        elif string.lower(lsrchan) == string.lower(cs[i].stats.channel):
+            laser = cs[i].data
+
+    return(sensor,laser,delta)
 
 
 
@@ -381,11 +403,11 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
     sensor2 = []
     laser1 = []
     laser2 = []
-    for i in range(0,4096):
+    for i in range(0,len(sensor)/2):
         sensor1.append(sensor[i]) # take the first 4096 samples
-        sensor2.append(sensor[(len(sensor)-4096+i)]) # Take the last 4096 samples
+        sensor2.append(sensor[(len(sensor)-(len(sensor)/2)+i)]) # Take the last 4096 samples
         laser1.append(laser[i]) # take the first 4096 samples
-        laser2.append(laser[(len(laser)-4096+i)]) # take the last 4096 samples
+        laser2.append(laser[(len(laser)-(len(sensor)/2)+i)]) # take the last 4096 samples
     
     ratio1 = np.std(sensor1)*np.std(laser1)
     ratio2 = np.std(sensor2)*np.std(laser2)
@@ -884,6 +906,95 @@ def plot_misfit_results(misfits,misfit_count,seismometer,best_index):
     plt.show()
     plt.close()
 
+
+
+                                           
+def grid_search(outfile):                 # Subroutine grid search
+                                          # Bring in the data and plot.                
+                                          #
+                                          # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
+                                          # Set up the control constants.
+    print"Grid search will iterate through several scenarios in order to find "
+    print"a best fit poles & zeros combination to describe the sensitivity curve."
+    print"\nThere are several options for this search:"
+    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
+    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
+    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
+    print"Option 3: Optimize for amplitude, damping ratio and free period"
+    print"\n Most calibrations are best served with option 1.\n"
+
+    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
+    if (Inputstring == ""):
+	Inputstring = 2        # use the default
+    nsearch = int(Inputstring) # use measured freeperiod 
+					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+                                          # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
+                                          # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
+                                          # 3: Grid search for optimum amplitude, damping ratio AND free period
+    coarse_search = 0.10                  # Typically 0.10
+    fine_search = 0.005                   # Typically 0.005
+    nloops = 6                            # Number of iterations through the grid (typically 4 or 5)
+    ngrids = 21                           # Number of steps (typically 20)
+    amp_units = "V*sec/m"
+    amp_label = "Amplitude [" + amp_units + "]"
+
+    Inputstring = raw_input("What is the lower bandpass multiple for the grid search? (I suggest 0.2)")
+    if (Inputstring == ""):
+	Inputstring = "0.2"        # use the default    
+    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
+    Inputstring = raw_input("what is the upper bandpass multiple? (I sugggest 5.0)")
+    if (Inputstring == ""):
+        Inputstring = "5.0"
+    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
+                                          # Gather the relevant information from the output file
+    fdata = load(outfile)
+    header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
+                                          # and includes the damping ratio, free period frequency, and channel calibration information
+                                          # in this order:
+    seismometer = fdata[0][0][0]          # fdata[0][0][0]  # Station name
+                                          # fdata[0][0][1]  # Channel 0 name
+                                          # fdata[0][0][2]  # Channel 0 ADC sensitivity in microvolts / count
+                                          # fdata[0][0][3]  # Channel 1 name
+                                          # fdata[0][0][4]  # Channel 1 ADC sensitivity
+                                          # fdata[0][0][5]  # Channel 2 name
+                                          # fdata[0][0][6]  # Channel 2 ADC sensitivity
+                                          # fdata[0][0][7]  # Channel 3 name
+                                          # fdata[0][0][8]  # Channel 3 ADC sensitivity 
+                                          # fdata[0][0][9]  # Laser position sensor in millivolts/micron
+                                          # fdata[0][0][10] # Lcalconstant geometry correction factor
+    msu_damp = float(fdata[0][0][11])     # fdata[0][0][11] # h damping ratio
+    msu_freep = 1/float(fdata[0][0][12])  # fdata[0][0][12] # Free period oscillation in Seconds, not Hz (as stored in cal file).
+                                          # fdata[0][0][13] # Selected channel for sensor data
+                                          # fdata[0][0][14] # Selected channel for laser data
+    channel = seismometer+'_CH_'+fdata[0][0][(int(fdata[0][0][13])*2)+1]
+    freq_msu = []                         # Initialize the frequency array
+    amp_msu = []                          # Initialize the matching amplitude array
+
+    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
+        freq_msu.append(float(fdata[1][i][0]))     # Field 0 is the frequency
+        amp_msu.append(float(fdata[1][i][1]))      # Field 1 is the average sensitivity
+
+                                          #    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
+                                          #    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
+
+                                          # Perform the grid search and create the curve
+
+    (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
+     find_pole_zero(freq_msu,amp_msu,channel,msu_freep,msu_damp,nsearch,\
+     coarse_search,fine_search,nloops,ngrids,lmult,hmult)
+
+                                          # Create the sac poles & zeros file
+
+    sac_pz_file = os.getcwd() +'\\'+ channel + '.sacpz' # Set the file name to whatever station name is.
+    write_sacpz(sac_pz_file,resp)
+
+                                          # Plot the data for the user.
+
+    plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
+    msu_freep,msu_damp,amp_average,amp_label,channel, sac_pz_file)
+
+
+
 ##############################################################################################
 
 
@@ -989,7 +1100,6 @@ def main():
         (sensorfiles,laserfiles) = sacparse(wdir,filelist,senchan,lsrchan) # returns a two item list of matched file names for the channel pair
                                                            # create a list of matched channel files for each frequency
         for n in range(0,len(sensorfiles)):
-
             data = sacload(sensorfiles[n],laserfiles[n],senchan,lsrchan) # This should return two lists, which are the sensor data(sacfiles[0], 
                                         # the laser data, and the delta.
             infiles = sensorfiles[n]+';'+laserfiles[n]
@@ -1008,116 +1118,57 @@ def main():
             gm_correct.append(gm_c)
             filenames.append(infiles)
 
+    if filetype == "css":
+        frequency = []  
+        sensor = []
+        laser = []
+        calnum = []
+        filenames = []
+        rn = []
+        h = []
+        gm_correct = []
+        senchan = cal_constants[((cal_constants[13]*2)+1)] # This points at the name of the sensor channel
+        lsrchan = cal_constants[((cal_constants[14]*2)+1)] 
+        for n in range(0,len(filelist)):
+            data = cssload(filelist[n],senchan,lsrchan)
+ 
+            (freq,senrms,lasrms,cal,resonance,damprat,gm_c) = process(data[0],data[1],data[2],cal_constants) # Process the file and output to outfile based on parameters
 
+            # Process input arguments are sensor data, laser data, delta and cal_constants
+            frequency.append(freq)
 
+            sensor.append(senrms)
+            laser.append(lasrms)
+            calnum.append(cal)
+            rn.append(resonance)
+            h.append(damprat)
+            gm_correct.append(gm_c)
+            filenames.append(filelist[n])
+
+    if len(frequency)<>0:
 
                                           # Write out the header for the csv output file containing the calibration curve data
 
-    with open(outfile,'wb') as csvfile:   # use 'wb' in place of 'a' if you want to overwrite the file.
-        outrow = csv.writer(csvfile, delimiter = ",",
-                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        outrow.writerow(cal_constants)
+        with open(outfile,'wb') as csvfile:   # use 'wb' in place of 'a' if you want to overwrite the file.
+            outrow = csv.writer(csvfile, delimiter = ",",
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            outrow.writerow(cal_constants)
 
                                           # Write out the calibration matrix to the csv calibration output file
                                           
-    with open(outfile,'a') as csvfile:    # use 'wb' in place of 'a' if you want to overwrite the file.
-        for n in range(len(frequency)):
-            outrow = csv.writer(csvfile, delimiter = ",",
-                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            outrow.writerow([frequency[n],calnum[n],sensor[n],laser[n],rn[n],h[n],gm_correct[n],filenames[n]])
-            print("fcal calculates to: {0:.3f} for frequency {1:.2f} Hz".format(calnum[n],frequency[n]))
+        with open(outfile,'a') as csvfile:    # use 'wb' in place of 'a' if you want to overwrite the file.
+            for n in range(len(frequency)):
+                outrow = csv.writer(csvfile, delimiter = ",",
+                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                outrow.writerow([frequency[n],calnum[n],sensor[n],laser[n],rn[n],h[n],gm_correct[n],filenames[n]])
+                print("fcal calculates to: {0:.3f} for frequency {1:.2f} Hz".format(calnum[n],frequency[n]))
 
          
-        print("output sent to {} \n\n".format(outfile))
+            print("output sent to {} \n\n".format(outfile))
     
-
-                                           
-                                          # Now that the file has been created,
-                                          # Bring in the data and plot.                
-                                          #
-                                          # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
-                                          # Set up the control constants.
-    print"Grid search will iterate through several scenarios in order to find "
-    print"a best fit poles & zeros combination to describe the sensitivity curve."
-    print"\nThere are several options for this search:"
-    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
-    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
-    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
-    print"Option 3: Optimize for amplitude, damping ratio and free period"
-    print"\n Most calibrations are best served with option 1.\n"
-
-    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
-    if (Inputstring == ""):
-	Inputstring = 2        # use the default
-    nsearch = int(Inputstring) # use measured freeperiod 
-					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
-                                          # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
-                                          # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
-                                          # 3: Grid search for optimum amplitude, damping ratio AND free period
-    coarse_search = 0.10                  # Typically 0.10
-    fine_search = 0.005                   # Typically 0.005
-    nloops = 6                            # Number of iterations through the grid (typically 4 or 5)
-    ngrids = 21                           # Number of steps (typically 20)
-    amp_units = "V*sec/m"
-    amp_label = "Amplitude [" + amp_units + "]"
-
-    Inputstring = raw_input("What is the lower bandpass multiple for the grid search? (I suggest 0.2)")
-    if (Inputstring == ""):
-	Inputstring = "0.2"        # use the default    
-    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
-    Inputstring = raw_input("what is the upper bandpass multiple? (I sugggest 5.0)")
-    if (Inputstring == ""):
-        Inputstring = "5.0"
-    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
-                                          # Gather the relevant information from the output file
-    fdata = load(outfile)
-    header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
-                                          # and includes the damping ratio, free period frequency, and channel calibration information
-                                          # in this order:
-    seismometer = fdata[0][0][0]          # fdata[0][0][0]  # Station name
-                                          # fdata[0][0][1]  # Channel 0 name
-                                          # fdata[0][0][2]  # Channel 0 ADC sensitivity in microvolts / count
-                                          # fdata[0][0][3]  # Channel 1 name
-                                          # fdata[0][0][4]  # Channel 1 ADC sensitivity
-                                          # fdata[0][0][5]  # Channel 2 name
-                                          # fdata[0][0][6]  # Channel 2 ADC sensitivity
-                                          # fdata[0][0][7]  # Channel 3 name
-                                          # fdata[0][0][8]  # Channel 3 ADC sensitivity 
-                                          # fdata[0][0][9]  # Laser position sensor in millivolts/micron
-                                          # fdata[0][0][10] # Lcalconstant geometry correction factor
-    msu_damp = float(fdata[0][0][11])     # fdata[0][0][11] # h damping ratio
-    msu_freep = 1/float(fdata[0][0][12])  # fdata[0][0][12] # Free period oscillation in Seconds, not Hz (as stored in cal file).
-                                          # fdata[0][0][13] # Selected channel for sensor data
-                                          # fdata[0][0][14] # Selected channel for laser data
-    channel = seismometer+'_CH_'+fdata[0][0][(int(fdata[0][0][13])*2)+1]
-    freq_msu = []                         # Initialize the frequency array
-    amp_msu = []                          # Initialize the matching amplitude array
-
-    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
-        freq_msu.append(float(fdata[1][i][0]))     # Field 0 is the frequency
-        amp_msu.append(float(fdata[1][i][1]))      # Field 1 is the average sensitivity
-
-                                          #    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
-                                          #    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
-
-                                          # Perform the grid search and create the curve
-
-    (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
-     find_pole_zero(freq_msu,amp_msu,channel,msu_freep,msu_damp,nsearch,\
-     coarse_search,fine_search,nloops,ngrids,lmult,hmult)
-
-                                          # Create the sac poles & zeros file
-
-    sac_pz_file = os.getcwd() +'\\'+ channel + '.sacpz' # Set the file name to whatever station name is.
-    write_sacpz(sac_pz_file,resp)
-
-                                          # Plot the data for the user.
-
-    plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
-    msu_freep,msu_damp,amp_average,amp_label,channel, sac_pz_file)
-
-
-
+        grid_search(outfile)
+    else:
+        print "No data files of the appropriate format were found within this directory."
 
 
 #

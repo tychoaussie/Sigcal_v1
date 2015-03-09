@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150228"
+__version__ = "20150303"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -16,6 +16,7 @@ import scipy as sp
 # the shift in oscillation frequency.
 #
 # Rev 2 also has support for SAC and Miniseed files.
+# Program also now supports css3.0
 #
                                            # import time, string
                                            # from obspy.core import read, Trace, Stream, UTCDateTime
@@ -89,8 +90,14 @@ def csvload(infile):      	# function csvload: Bring in only one channel, specif
 def sacload(infile):
 
     st=read(infile)
-    delta = st[0].stats.delta
-    sensor = st[0].data
+    for i in range(0,len(st)):
+        print "{0} is channel number {1}".format(i,st[i].stats.channel)
+    chnum = int(raw_input("Please select the channel number representing the sensor:  "))
+    
+    
+    
+    delta = st[chnum].stats.delta
+    sensor = st[chnum].data
 
     return(sensor,delta)
 
@@ -165,7 +172,7 @@ def process(infile,filetype):
                                               # Load the infile currently loaded with 1 Hz data
     if filetype == 'csv':
         (sensor,delta) = csvload(infile)
-    elif (filetype == 'sac') or (filetype == 'msd'):
+    elif (filetype == 'sac') or (filetype == 'msd') or (filetype == 'css'):
         (sensor,delta) = sacload(infile)
     else:
         print "\n\n\nError: Unable to determine the file type of this input file.\n\n\n"    
@@ -284,6 +291,7 @@ def process(infile,filetype):
                 else:
                     if flag == True:
                         nn +=1
+                        print "ZZ[{0}] reports as {1}".format(n,ZZ[n])
         if nn>3:
             nn = 3 # stop counting at 4   
         hh = []
@@ -341,6 +349,8 @@ def main():
                 filetype = 'sac'
             if "msd" in sys.argv[n]:
                 filetype = 'msd'
+            if "css" in sys.argv[n]:
+                filetype = 'css'
             if "." in sys.argv[n]:
                 infile = sys.argv[n]
     else:
