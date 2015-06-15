@@ -1,0 +1,18 @@
+File converters for symmetric research:
+
+dat2asc.exe - Use this program for dat files created using the USB4CH series of digitizers. 
+
+Command example:
+
+dat2asc.exe c:\seismo\mydatafiles\00000001.dat csv
+
+
+par42asc.exe - Use this program for dat files created using the PAR4CH seris of digitizers.
+
+par42asc.exe c:\seismo\mydatafiles\00000001.dat /tymd
+
+The two ascii file outputs will be different from one another. I am working on accomodating
+by creating an ascii-to-sac file converter that will identify and appropriately convert 
+either file.
+
+D Burk

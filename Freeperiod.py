@@ -2,7 +2,7 @@ __author__ = "Daniel Burk <burkdani@msu.edu>"
 __version__ = "20150605"
 __license__ = "MIT"
 
-# Repaired the file import to handle csv, sac, and css files
+# Repaired the file import to handle csv, sac, miniseed and css files
 
 import os, sys, csv
 from obspy import read
@@ -39,7 +39,7 @@ class Freeperiod(object):
        
 
        Typical useage:
-       <ObsPy> C:\Python27\scripts> python freeperiod.py c:/calibration/station/filename filetype
+       <ObsPy> C:\Python27\scripts> python freeperiod.py c:/calibration/station/filename* filetype
        
        where, filetype is either: csv, sac, mseed, or css.
        Sac, Miniseed, and css files requires a wildcard in file name to import all related channels.
@@ -138,7 +138,7 @@ def cssload(infile):
     for i in range(0,len(cs)):
         print "Channel: {}".format(cs[i].stats.channel)
 
-
+#    Station = raw_input('Please enter the station name. ')
     lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
     senchan = raw_input('\nWhat is the name of the channel for the sensor? ')
 

@@ -55,12 +55,7 @@ import scipy as sp
 import difflib as diff
 import time, string
 #import grid_search                         # Grid_search created by Hans Hartse, LANL
-                                           # This module must be installed in the python lib
-                                           # directory that is referenced by whatever python
-                                           # you are running. It also has an Obspy dependency
-                                           # So Obspy must be installed for it to run.
-                                           # If you are running this in ipython notebooks
-                                           # grid_search.py must be installed in c:/Anaconda/lib
+                                           
 
                                            # from obspy.core import read, Trace, Stream, UTCDateTime
                                            # from obspy.sac import SacIO
@@ -391,12 +386,12 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
                                       #            
                                       # Find the period of the observed signal
                                       #
-    #    sense = signal.detrend(sensor)
+
     # Create a head and tail for the file of 4096 sample apiece.
     # We will create two ratios, from the head and tail of the file
     # and use the one with the lowest standard deviation for determining
     # the one for use with the FFT
-    #
+    
     sensor = signal.detrend(sensor)
     laser = signal.detrend(laser)
     sensor1 = []
@@ -411,7 +406,7 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
     
     ratio1 = np.std(sensor1)*np.std(laser1)
     ratio2 = np.std(sensor2)*np.std(laser2)
-    if ratio1<ratio2: # The chunk with the smallest standard deviation wins.
+    if ratio1<ratio2:                      # The chunk with the smallest standard deviation wins.
         sensor3 = sensor1
         laser3 = laser1
     else:

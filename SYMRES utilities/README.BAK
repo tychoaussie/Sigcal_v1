@@ -1,0 +1,8 @@
+File converters for symmetric research:
+
+dat2asc.exe - Use this program for dat files created using the USB4CH series of digitizers. 
+
+Command example:
+
+dat2asc.exe c:\seismo\mydatafiles\00000001.dat csv
+

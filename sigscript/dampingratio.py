@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150303"
+__version__ = "20150608"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -9,6 +9,7 @@ from scipy.integrate import simps
 import pylab as plt
 import numpy as np
 import scipy as sp
+import string
 
 
 # Rev 2 incorporates the calculation of free period based on the period of damping ratio impulse.
@@ -60,11 +61,9 @@ def csvload(infile):      	# function csvload: Bring in only one channel, specif
             
     sensor = [] 
     laser = []
-
-#    keyboard = raw_input('\n Enter the channel num. for the laser position sensor')
-#    if keyboard =="":
-#        keyboard = "0"
-#    lsrchan = int(keyboard)
+    for i in range(0,4):
+        print "'{0:5}' = channel {1}".format(header[0][i+1],i)
+    print "\n"
     keyboard = raw_input('\n Enter the channel num. for the seismic sensor')
     if keyboard =="":
         keyboard = "1"
@@ -86,21 +85,73 @@ def csvload(infile):      	# function csvload: Bring in only one channel, specif
 				# function sacload: This function serves both sac and miniseed files.
 
 
+def cssload(infile):
+    print "Attempting to load CSS files."
+    cs = read(infile, format = "css")
+    print "Available channels:\n"
 
-def sacload(infile):
+    for i in range(0,len(cs)):
+        print "Channel: {}".format(cs[i].stats.channel)
 
-    st=read(infile)
-    for i in range(0,len(st)):
-        print "{0} is channel number {1}".format(i,st[i].stats.channel)
-    chnum = int(raw_input("Please select the channel number representing the sensor:  "))
-    
-    
-    
-    delta = st[chnum].stats.delta
-    sensor = st[chnum].data
+
+#    lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
+    senchan = raw_input('\nWhat is the name of the channel for the sensor? ')
+    sensor = []
+    delta = cs[0].stats.delta
+    for i in range(len(cs)):
+        if string.lower(senchan) == string.lower(cs[i].stats.channel):
+            sensor = cs[i].data
+#        elif sring.lower(lsrchan) == string.lower(cs[i].stats.channel):
+#            laser = cs[i].data
 
     return(sensor,delta)
 
+
+
+def sacload(infile):
+    print "Attempting to load SAC files."
+
+    cs = read(infile, format = "sac")
+
+    print "Available channels:\n"
+
+    for i in range(0,len(cs)):
+        print "Channel: {}".format(cs[i].stats.channel)
+
+#    Station = raw_input('Please enter the station name. ')
+#    lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
+    senchan = raw_input('\nWhat is the name of the channel for the sensor?')
+    sensor = []
+    delta = cs[0].stats.delta
+    for i in range(len(cs)):
+        if string.lower(senchan) == string.lower(cs[i].stats.channel):
+            sensor = cs[i].data
+#        elif string.lower(lsrchan) == string.lower(cs[i].stats.channel):
+#            laser = cs[i].data
+
+    return(sensor,delta)
+
+
+
+def mseedload(infile):
+    print "Attempting to load miniseed files."
+    cs = read(infile, format = "mseed")
+    print "Available channels:\n"
+    for i in range(0,len(cs)):
+        print "Channel: {}".format(cs[i].stats.channel)
+
+#    Station = raw_input('Please enter the station name. ')
+#    lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
+    senchan = raw_input('\nWhat is the name of the channel for the sensor?')
+    sensor = []
+    delta = cs[0].stats.delta
+    for i in range(len(cs)):
+        if string.lower(senchan) == string.lower(cs[i].stats.channel):
+            sensor = cs[i].data
+#        elif string.lower(lsrchan) == string.lower(cs[i].stats.channel):
+#            laser = cs[i].data
+
+    return(sensor,delta)
 
 
 
@@ -172,8 +223,12 @@ def process(infile,filetype):
                                               # Load the infile currently loaded with 1 Hz data
     if filetype == 'csv':
         (sensor,delta) = csvload(infile)
-    elif (filetype == 'sac') or (filetype == 'msd') or (filetype == 'css'):
+    elif (filetype == 'sac'):
         (sensor,delta) = sacload(infile)
+    elif (filetype == 'msd') or (filetype =='mseed'):
+        (sensor,delta) = mseedload(infile)
+    elif (filetype == 'css'):
+        (sensor,delta) = cssload(infile)
     else:
         print "\n\n\nError: Unable to determine the file type of this input file.\n\n\n"    
 
