@@ -1,6 +1,11 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150303"
+__version__ = "20150728"
 __license__ = "MIT"
+
+# 20150721 - replace dependency on Python27 directory with Anaconda dependency
+# 20150721 - change the recommended defaults for grid search to Hz.
+# 20150722 - Change the CWD used for the plots in gridsearch to the appropriate directory
+# 20150728 - change some of the plotted text to describe the calibration values
 
 # NEW VERSION for testing revised signal processing techniques.
 # Use FFT for finding the RMS of the signals,
@@ -137,7 +142,7 @@ def getoptions():
     filelist = []
     station = 0
     stname = 'unk'
-    for i in range(0,len(sys.argv)):
+    for i in range(1,len(sys.argv)): # corrected this bug drb 20150721
 #    print "Option {0} is equal to '{1}'".format(i,sys.argv[i])
         if 'csv' in string.lower(sys.argv[i]):
             filetype = 'csv'
@@ -495,7 +500,7 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
 
 ######################## Start of grid_search algorithm by Hans Hartse ###################
 
-###### LA-CC-14-079 ###############################################################
+                                 ###### LA-CC-14-079 #######
 # Author: Hans Hartse, LANL : August, 2014
 # Modified by D Burk, Michigan State University
 # Version: 20140831
@@ -589,8 +594,8 @@ def find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,coars
 
     count = 0
     amp_average = 0.
-    lmult = lmult/msu_freep # make it a multiplier of freeperiod in Hz (lowest)
-    hmult = hmult/msu_freep                                         # (Highest)
+#    lmult = lmult/msu_freep # make it a multiplier of freeperiod in Hz (lowest)
+#    hmult = hmult/msu_freep                                         # (Highest)
     
     for i, freq in enumerate(freq_msu):
         if ( freq > lmult) and (freq < hmult):  
@@ -775,21 +780,22 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
                              # this str function is part of the standard Python, no need to "import" a special "package"
 
     plt.ylabel( str(amp_label) )
-    plt.suptitle('Frequency vs Amplitude: Seismometer ' + str(seismometer) )
+    plt.suptitle('Frequency vs Amplitude: Channel ' + str(seismometer) )
 
                              # plot over range from 2/3 * minimum frequency to 2.0 * maximum frequency  
                              # and over range from 2/3 * minimum amplitude to 2.0 * maximum amplitude  
 
-    plx_min = freq_msu[0] * 0.66
-    plx_max = freq_msu[len(freq_msu) - 1] * 2.00
-    ply_min = amp_msu[0] * 0.66
-    ply_max = amp_msu[len(freq_msu) - 1] * 2.00
+    plx_min = 0.05 # freq_msu[0] * 0.66
+    plx_max = 40.0 # freq_msu[len(freq_msu) - 1] * 2.00
+    ply_min = 0.10 # amp_msu[0] * 0.66
+    ply_max = 1000.0 # amp_msu[len(freq_msu) - 1] * 2.00
     plt.axis([plx_min, plx_max, ply_min, ply_max])
 
     freep_per = 100. * ( abs ( best_freep - msu_freep ) / msu_freep )
     damp_per = 100. * ( abs ( best_damp - msu_damp ) / msu_damp )
     scale_per = 100. * ( abs ( best_scale - amp_average ) / amp_average )
-
+    rsp = ""
+    cdt = "Calibration date = "+ (time.strftime("%d/%m/%Y %H:%M:%S"))
     tfp = "free period = %.3f Hz (%.2f%% MSU: %.3f)" % ( 1./best_freep, freep_per, 1./msu_freep )
     print ( "\n" )
     print tfp
@@ -797,19 +803,35 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
     print tdr
     tsf = "scale = %.2f V.m/sec( Avg. amp: %.2f)" % ( best_scale, amp_average )
     print tsf
-    spz = "SAC pole-zero file is named %s" % ( sac_pz_file )
+    spz = "File: %s" % ( sac_pz_file )
+    #f.write("ZEROS {}\n".format(len(resp['zeros']) + 1 ))
+    zzz = "ZEROS: {}".format(len(resp['zeros']) + 1 )
+     #   f.write("POLES {}\n".format(len(resp['poles'])))
+    ppp = "POLES {}\n".format(len(resp['poles']))
+    for pole in resp['poles']:
+      #      f.write("{:e} {:e}\n".format(pole.real, pole.imag))
+        rsp = rsp+"real:  {:e} Imaginary:  {:e}\n".format(pole.real, pole.imag)
+       # f.write("CONSTANT {:e}".format(resp['gain']))
+    print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
+ 
 
                              # post results as text lines on the plot
 
     xtext = plx_min * 7.
-    ytext = ply_min * 8.
+    ytext = ply_min * 60
+    plt.text( xtext, ytext, cdt )
+    ytext = ply_min * 40
     plt.text( xtext, ytext, tfp )
-    ytext = ply_min * 5.
+    ytext = ply_min * 30
     plt.text( xtext, ytext, tdr )
-    ytext = ply_min * 2.8
+    ytext = ply_min * 20
     plt.text( xtext, ytext, tsf )
-    ytext = ply_min * 1.7
-    plt.text( xtext, ytext, spz )
+    ytext = ply_min * 10
+    plt.text( xtext, ytext, zzz )
+    ytext = ply_min * 5
+    plt.text( xtext, ytext, ppp )
+    ytext = ply_min * 2
+    plt.text( xtext, ytext, rsp )
 
                              # post some symbols and text for a legend
 
@@ -818,15 +840,19 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
     freq_symbol = np.zeros(1)
     freq_symbol[0] = freq_msu[0]
     plt.loglog(freq_symbol, amp_symbol, 'go', markersize=6 )
-    plt.text( freq_symbol[0] * 1.1, amp_symbol[0], 'Measurment', va='center' )
+    plt.text( freq_symbol[0] * 1.1, amp_symbol[0], 'Measurement', va='center' )
     amp_symbol[0] = best_scale * 0.70
     freq_symbol[0] = freq_msu[0]
     plt.loglog(freq_symbol, amp_symbol, 'ro', markersize=4 )
     plt.text( freq_symbol[0] * 1.1, amp_symbol[0], 'Model Best Fit', va='center' )
     plt.grid(True, which='major')
     plt.grid(True, which='minor')
-    fig = os.getcwd()+"\\"+seismometer + '_freq_v_amp' + '.png' # Place it in current working directory - drb
-    txt = "plotted best-fit frequency vs amplitude results - saved in file: %s" % ( fig )
+
+    fileopts = getoptions()           # Use the getoptions def to parse the command line options.
+    wdir     = fileopts[0]            # working directory
+
+    fig = wdir+"\\"+seismometer + '_freq_v_amp' + '.png' # Place it in current working directory - drb
+    txt = "best-fit freq. vs ampl. plot: %s" % ( fig )
     print "\n"
     print txt
     plt.savefig( fig )
@@ -859,7 +885,7 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
 #plt.subplots_adjust(wspace=0.3)
     plt.grid(True, which='major')
     plt.grid(True, which='minor')
-    fig = os.getcwd()+"\\"+ seismometer + '_freq_v_phase' + '.png'
+    fig = wdir+"\\"+ seismometer + '_freq_v_phase' + '.png' # save in data directory
     txt = "plotted best-fit frequency vs phase results - saved in file: %s" % ( fig )
     print "\n"
     print txt
@@ -933,11 +959,11 @@ def grid_search(outfile):                 # Subroutine grid search
     amp_units = "V*sec/m"
     amp_label = "Amplitude [" + amp_units + "]"
 
-    Inputstring = raw_input("What is the lower bandpass multiple for the grid search? (I suggest 0.2)")
+    Inputstring = raw_input("What is the lower frequency (Hz) for averaging amplitude? \n (should be higher than the resonance freq.)")
     if (Inputstring == ""):
-	Inputstring = "0.2"        # use the default    
+	Inputstring = "1.5"        # use the default    
     lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
-    Inputstring = raw_input("what is the upper bandpass multiple? (I sugggest 5.0)")
+    Inputstring = raw_input("what is the upper frequency? (I sugggest 5.0 Hz)")
     if (Inputstring == ""):
         Inputstring = "5.0"
     hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)

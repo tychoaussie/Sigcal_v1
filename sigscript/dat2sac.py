@@ -31,14 +31,14 @@ class dat2sac(object):
        to rename or move any sequential csv file that you do not wish to include within the csv.
         
        One critical requirement is that dat2asc.exe (2010 build) exists in the
-       directory as such: "c:\Python27\dat2asc.exe"
+       directory as such: "c:\Anaconda\dat2asc.exe"
 
        Syntax: dat2csv target_directory  
 
        
 
        Typical useage:
-       <ObsPy> C:\Python27\scripts> python Dat2sac.py c:/calibration/station/ 
+       <ObsPy> C:\Anaconca\sigscript> python Dat2sac.py c:/calibration/station/ 
 
     '''
 
@@ -100,19 +100,19 @@ def getcal(calcontrol):
             cconstant[3] = raw_input('Channel 1: ') # (text) Channel name for CH1
             cconstant[5] = raw_input('Channel 2: ') # (float) adccal[1]: cal constant for ch 1 (microvolts / count)
             cconstant[7] = raw_input('Channel 3: ') # (text) Channel name for CH2
-            print "Enter the channel calibration constants for the above four channels.\n"
-            cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
-            cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
-            cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
-            cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
-            cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
-            print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
-            print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
-            cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
-            cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
-            cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
-            cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
-            cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
+#            print "Enter the channel calibration constants for the above four channels.\n"
+#            cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
+#            cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
+#            cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
+#            cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
+#            cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
+#            print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
+#            print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
+#            cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
+#            cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
+#            cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
+#            cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
+#            cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
         except:
            print "Error during manual input of the calibration constant parameters.\n"
            print "Setting the paramters to default settings."
@@ -208,7 +208,7 @@ def convert(infile):
     outfile = infile[:string.find(infile,'.')]+".csv"
     dat2csvfile = infile[:string.rfind(infile,"\\")+1]+"Dat2asc-301-Data.csv"
     calcontrol = infile[:string.rfind(infile,"\\")+1]+"calcontrol.cal"
-    subprocess.call(["c:\\Python27\\dat2asc.exe",infile,"csv"])
+    subprocess.call(["c:\\Anaconda\\dat2asc.exe",infile,"csv"])
     print "convert {} to: \n".format(dat2csvfile)
     print outfile
 
@@ -219,7 +219,7 @@ def convert(infile):
 def main():
                                       #           MAIN PROGRAM BODY
                                       #  Parse the command line switches
-                                      # Commmand example: c:\Python27>Python.exe Sigcal.py c:\seismo\caldata\momo
+                                      # Commmand example: c:\Anaconda>Python.exe Sigcal.py c:\seismo\caldata\momo
                                       # where momo is the working directory containing the csv files
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
                                       # The third option can designate an optional location for the calcontrol file.

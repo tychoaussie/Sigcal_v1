@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150608"
+__version__ = "20150721"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -11,7 +11,7 @@ import numpy as np
 import scipy as sp
 import string
 
-
+# Replace dependency on python27 directory with dependency on Anaconda directory.
 # Rev 2 incorporates the calculation of free period based on the period of damping ratio impulse.
 # Based on formulas from Soviet instrumentation textbooks that relate how damping ratio affects
 # the shift in oscillation frequency.
@@ -35,7 +35,7 @@ class Dampingratio(object):
        
 
        Typical useage:
-       <ObsPy> C:\Python27\scripts> python dampingratio.py c:/calibration/damping/myfile.sac sac
+       <ObsPy> C:\Anaconda\scripts> python dampingratio.py c:/calibration/damping/myfile.sac sac
 
        Optional parameters: filetype of either: [ csv, sac, msd ]
     '''
@@ -385,19 +385,24 @@ def process(infile,filetype):
 def main():
                                       #           MAIN PROGRAM BODY
                                       #  Parse the command line switches
-                                      # Commmand example: c:\Python27>Python.exe Sigcal.py c:\seismo\caldata\momo
+                                      # Commmand example: c:\Anaconda>Python.exe Sigcal.py c:\seismo\caldata\momo
                                       # where momo is the working directory containing the csv files
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
                                       # The third option can designate an optional location for the calcontrol file.
                                       #
     optioncount = len(sys.argv)
+    print "Number of parameters = {0}.".format(optioncount)
+    print sys.argv[0]
     outputfile_defined = False
     filelist = []
+    filetype = 'sac'
+    infile = os.getcwd()+"\\*.sac"
     dir=""
-    outfile = os.getcwd()+"\calibration_freeperiod_report.cal"
+    outfile = os.getcwd()+"\\calibration_freeperiod_report.cal"
 
-    if optioncount > 1:
+    if optioncount >= 1:
         for n in range(1,optioncount):
+            print "Argument # {0}: '{1}'".format(n,sys.argv[n])
             if "csv" in sys.argv[n]:
                 filetype = 'csv'
             if "sac" in sys.argv[n]:
@@ -407,6 +412,7 @@ def main():
             if "css" in sys.argv[n]:
                 filetype = 'css'
             if "." in sys.argv[n]:
+                print "Setting infile to '{}'".format(sys.argv[n])
                 infile = sys.argv[n]
     else:
         print " This program requires that you input a file representing \na calibration impulse for damping ratio calculation."

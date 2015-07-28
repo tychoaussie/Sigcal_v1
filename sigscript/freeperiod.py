@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150605"
+__version__ = "20150721"
 __license__ = "MIT"
 
 # Repaired the file import to handle csv, sac, and css files
@@ -164,15 +164,20 @@ def sacload(infile):
         print "Channel: {}".format(cs[i].stats.channel)
 
 #    Station = raw_input('Please enter the station name. ')
-    lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
-    senchan = raw_input('\nWhat is the name of the channel for the sensor?')
 
+    sensor = []
+    laser = []
     delta = cs[0].stats.delta
-    for i in range(len(cs)):
-        if string.lower(senchan) == string.lower(cs[i].stats.channel):
-            sensor = cs[i].data
-        elif string.lower(lsrchan) == string.lower(cs[i].stats.channel):
-            laser = cs[i].data
+    while len(sensor)==0 or len(laser) == 0:
+        lsrchan = raw_input('\n\nWhat is the name of the channel for the laser? ')
+        senchan = raw_input('\nWhat is the name of the channel for the sensor?')
+        for i in range(len(cs)):
+            if string.lower(senchan) == string.lower(cs[i].stats.channel):
+                sensor = cs[i].data
+            elif string.lower(lsrchan) == string.lower(cs[i].stats.channel):
+                laser = cs[i].data
+        if len(sensor) == 0 or len(laser) == 0:
+            print "Unable to resolve laser or sensor from these channels."
 
     return(sensor,laser,delta)
 
@@ -351,10 +356,10 @@ def main():
     outputfile_defined = False
     filelist = []
     dir=""
-    infile = ''
+    infile = '*.sac'
     outfile = os.getcwd()+"\calibration_freeperiod_report.cal"
     calfile = os.getcwd()+"\calcontrol.cal"
-    filetype = 'csv'                  # The default filetype
+    filetype = 'sac'                  # The default filetype
     for i in range(1,len(sys.argv)):
         if "." in sys.argv[i]:        # assume that this argument contains a file name.
             infile = sys.argv[i]
