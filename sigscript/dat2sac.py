@@ -1,8 +1,8 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150615"
+__version__ = "20150803"
 __license__ = "MIT"
 # Fixed bug in convert definition that didn't like being in the same working directory as the data.
-
+# Fixed bug in sac write that wouldnt work in the 32-bit installations.
 
 
 import os
@@ -196,9 +196,11 @@ def csv2sac(infile,calcontrol):
         t.SetHvalue('kinst',comment[i-1])       # Instrument type
         t.SetHvalue('knetwk','CSV2SAC ')         # Network designator
         t.SetHvalue('kuser0',units[i-1])        # Place the system of units into the user text field 0
-        t.WriteSacBinary(outfile+"_{}.sac".format(Channel[i]))
+        f = outfile+"_{}.sac".format(Channel[i])
+        with open(f,'wb') as sacfile:
+            t.WriteSacBinary(sacfile)
         print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
-
+        sacfile.close()
   
 
 

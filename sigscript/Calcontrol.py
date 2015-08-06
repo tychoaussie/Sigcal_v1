@@ -1,8 +1,12 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150210"
+__version__ = "20150806"
 __license__ = "MIT"
 
-import os, sys, csv
+# 20150806 version : Load the calcontrolcache from main script directory for starting values
+# then save these values to the cache at the end, if the user desires it.
+#
+
+import os, sys, csv,string
 
 class Calconst(object):
     '''CALCONST is a utility for generating the calibration constants necessary for running
@@ -24,6 +28,45 @@ class Calconst(object):
        <ObsPy> C:\Python27\scripts> python Calconst.py c:\seismo\calibration\
 
     '''
+
+def getcal(cachefile): 
+    # calcontrol needs to include calibration constants as well as the station name and the channel name, and the particular constant for that channel.
+    # Thus a third line is necessary that specifies the channel identifier and the channel assignment of that channel.
+    # Channel name is located in the top row already, and it's position is associated with the sensitivity. So the third row designates the UUT and the
+    # laser position channel.
+    cconstant = ["MSU","CH0",0.9537,"CH1",0.9537,"CH2",0.9537,"CH3",0.9537,1.0,0.579,0.707,0.890,1,3]
+    try:
+        with open(cachefile,'r') as fin:
+            list = csv.reader(fin)
+            rowcnt=0            
+            stack = []
+            header = []
+            calconstants = []
+            selection = []
+            for row in list:
+                stack.append(row)
+            header = stack[0]
+            calconstants = stack[1]
+            if len(stack)==3:# old calibration file format, so prompt the user for the appropriate channel assignments.
+                selection = stack[2]
+            else:
+                for i in range(0,4):
+                    print "\n\nNo channels selected for calibration in cal control file."
+                for i in range(0,4):
+                    print"Note: Channel {0} is listed as channel number {1}".format(header[i+1],i)
+            
+                selection.append(int(raw_input('Choose the channel number representing the unit under test:  ')))
+                selection.append(int(raw_input('Choose the channel number representing the laser position sensor:  ')))
+
+
+    except:
+        print "Error during retrieval of the calibration constant default parameters.\n"
+        print "Setting the paramters to default settings."
+        header = ['MSU','CH0','CH1','CH2','CH3','Laserres','lcalconst','h','resfreq']
+        calconstants = ['MSU',0.9537,0.9537,0.9537,0.9537,0.9990,0.579,0.707,0.890]
+        selection = [1,3]
+    return(header,calconstants,selection)
+
                                    # Function getconstants:
                                    # From calcontrol file, retrieve the list of constants 
                                    # that relate these measurements to the real world.
@@ -49,6 +92,7 @@ def main():
                                   # working directory.
     optioncount = len(sys.argv)    
     calcontrol = os.getcwd()+"\calcontrol.cal"
+    cache = "c:\Anaconda\sigscript\calcontrolcache.cal"
 
     if optioncount > 1:           # If there are switches, check the first one only.                           
         if optioncount == 2:
@@ -56,97 +100,151 @@ def main():
                 calcontrol = sys.argv[1]+"\calcontrol.cal"
 
                                   # Scan to see if file exists. If so, load it for defaults.
-                                  #
+  
+   
 
-#       main execution code goes here for parsing through all the files in filelist.
-#                                 # Populate the header
-    header = []
-                                   # Populate the array
-    constant = []
-    selection = []
+    header,constant,selection = getcal(cache) 
 
     try:
-        invar = raw_input('Please enter the station name. ')
+        invar = raw_input('Please enter the station name. (Default = [ {} ]) \n--> '.format(header[0]))
         if len(invar)==0:
-            invar = "SGCAL"
-            print "Station name is set to default 'SGCAL'"
-        constant.append(str(invar))
-        header.append(str(invar))
+            invar = str(header[0])
+            print "Station name is set to default '{}'".format(header[0])
+        constant[0]=str(invar)
+        header[0]=(str(invar))
     except ValueError:
-        print "Please enter appropriate characters. Station name set to 'SGCAL'."
-        constant.append("SGCAL")
-        header.append("SGCAL")
+        print "Please enter appropriate characters. Station name set to '{}'.".format(header[0])
 
-    for j in range(0,4):
+
+    for j in range(1,5):
         try:
-            print"\nEnter the name for channel {}:  ".format(j)
-            invar = str(raw_input('  '))
+            print"\nEnter the name for channel {0}: (Default = [ {1} ]) ".format(j,header[j])
+            invar = str(raw_input('-->'))
             if len(invar)==0:
-                invar = "Channel"+str(j)
-                print "Channel name is set to default '{}'".format(invar)
-            header.append(invar)
+                #invar = "Ch"+str(j)
+                print "Channel name is set to default '{}'".format(header[j])
+                invar = header[j]
+            header[j] = (invar)
         except ValueError:
             print "No input."
-            print "channel name set to 'Channel{}' as a default.".format(j)
-            header.append('Channel'+str(j))
+            print "channel name set to '{}' as a default.".format(header[j])
+            # header[j] = ('Ch'+str(j))
 
         try:
-            constant.append(float(raw_input('Channel 0 calibration value, in uV/count:  ')))
+            print 'Channel {0} calibration value, in uV/count: Default = [ {1} ] '.format(j,constant[j])
+            invar = str(raw_input('--> '))
+            if len(invar)==0:
+                print "Channel gain set to default of {}\n\n".format(constant[j])
+                invar = constant[j]
+            constant[j] = (float(invar))
         except ValueError:
             print "Value must be a floating point number."
-            print "Calibration number being set to 0.9425 uV/count as a default."
-            constant.append(float(0.9425))
+            print "Calibration number being set to {} uV/count as a default.\n\n".format(constant[j])
 
 
     try:
-        constant.append(float(raw_input('\nEnter the laser resolution cal constant (mV/micron)  ')))
+        print 'Enter laser resolution calibration (mV/micron). default = [ {} ]'.format(constant[5])
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "Laser resolution set to default of {} mV/micron\n".format(constant[5])
+            invar = constant[5]
+        constant[5] = (float(invar))
     except ValueError:
-        print "Error! Value must be a floating point number."
-        print "Calibration number being set to 0.9932 as a default."
-        constant.append(float(0.9932))
+        print "Value must be a floating point number."
+        print "Calibration number being set to {} mV/micron as a default.\n".format(constant[5])
+
 
     try:
-        constant.append(float(raw_input('\nEnter the mass/laser position Geometry correction ratio:  ')))
+        print 'Enter the mass/laser position Geometry correction ratio: default = [ {} ]'.format(constant[6])
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "correction ratio set to default of {}\n".format(constant[6])
+            invar = constant[6]
+        constant[6] = (float(invar))
     except ValueError:
-        print "Error! Value must be a floating point number."
-        print "Calibration number being set to 0.579 as a default for SM3."
-        constant.append(float(0.579))
+        print "Value must be a floating point number."
+        print "Correction ratio being set to {} as a default.\n".format(constant[6])
+
 
     try:
-        constant.append(float(raw_input('\nEnter the measured damping ratio h:  ')))
+        print 'Enter the damping ratio for this seismometer:'
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "Damping ratio (h) set to default of {}\n".format(constant[7])
+            invar = constant[7]
+        constant[7] = (float(invar))
     except ValueError:
-        print "Error! Value must be a floating point number."
-        print "Calibration number being set to 0.707 as a default."
-        constant.append(float(0.707))
+        print "Value must be a floating point number."
+        print "Damping ratio (h) being set to {} as a default.\n".format(constant[7])
+
+
 
     try:
-        constant.append(float(raw_input('\nEnter the measured free period frequency in Hz:  ')))
+        print 'Enter the resonance frequency (1/free period) in Hz:'
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "Resonance frequency set to default of {} Hz\n".format(constant[8])
+            invar = constant[8]
+        constant[8] = (float(invar))
     except ValueError:
-        print "Error! Value must be a floating point number."
-        print "Calibration number being set to 0.75 Hz as a default."
-        constant.append(float(0.750))
+        print "Value must be a floating point number."
+        print "Resonance frequency being set to {} Hz as a default.\n".format(constant[8])
 
-    try:
-        print "\n\nChoose the channel that represents the unit under test."
-        for i in range(0,4):
-            print"Channel {0} is listed as channel number {1}".format(header[i+1],i)
-        
-        selection.append(int(raw_input('Choose the channel number representing the unit under test:  ')))
-        selection.append(int(raw_input('Choose the channel number representing the laser position sensor:  ')))
+
+
     
+    for i in range(0,4):
+        print"{0} assigned to: ------>Ch # {1}".format(header[i+1],i)
+
+
+
+    try:
+        print 'Choose the channel number representing the sensor:(default = [ {} ]'.format(selection[0])
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "Channel number {} assigned to represent the sensor.".format(selection[0])
+            invar = selection[0]
+        selection[0] = int(invar)
+
+        if int(invar)>=0 and int(invar) <= 3:
+            selection[0] = int(invar)
+        else:
+            print "Selection is outside the bounds for the digitizer. Must be a value between 0 and 3."
+            print " Channel selection set to default of ADC digitizer channel # {}\n\n".format(selection[0])
+
     except ValueError:
-        print "No input."
-        print "UUT channel set to 'Channel2' as a default."
-        print "Laser channel set to 'Channel3' as a default."
-        print "If these are incorrect, you may manually edit the calibration control file."
-        selection.append(int(2))
-        selection.append(int(3))
+        print "Value must be a floating point number."
+        print "Channel number {} assigned to represent the sensor.".format(selection[0])
+
+
+
+    try:
+        print 'Choose the channel number representing the sensor:(default = [ {} ]'.format(selection[1])
+        invar = str(raw_input('--> '))
+        if len(invar)==0:
+            print "Channel number {} assigned to represent the sensor.\n\n".format(selection[1])
+            invar = selection[1]
+        if int(invar)>=0 and int(invar) <= 3:
+            selection[1] = int(invar)
+        else:
+            print "Selection is outside the bounds for the digitizer. Must be a value between 0 and 3."
+            print " Channel selection set to default of ADC digitizer channel # {}\n\n".format(selection[1])
+    except ValueError:
+        print "Value must be a floating point number."
+        print "Channel number {} assigned to represent the sensor.\n\n".format(selection[1])
+
+    print "Station name: {}".format(header[0])
+    for i in range(1,5):
+        print "ADC Ch {0} assigned to channel {1} with sensitivity of {2} uV/count.".format(i-1,header[i],constant[i])
+    print "Laser resolution = {} mV/mm".format(constant[5])
+    print "Mass length to laser measurement point ratio (lcalconstant) = {}".format(constant[6])
+    print "Damping ratio h = {}".format(constant[7])
+    print "Resonance frequency = {} Hz".format(constant[8])
+    print "Sensor is connected to ADC channel number {}".format(selection[0])
+    print "Laser is connected to ADC channel number {}".format(selection[1])
+  
 
 #                         Fill out the remainder of the header for compatability
-    header.append('laserres')
-    header.append('lcalconst')
-    header.append('h')
-    header.append('resfreq')
       
     
                           # constant[0] = (text) Station: 'station name'
@@ -167,6 +265,19 @@ def main():
          outrow.writerow(header)
          outrow.writerow(constant)
          outrow.writerow(selection)
+
+    try:
+        invar = raw_input('Save as new defaults? Y/N ')
+        if string.lower(invar)[:1] == "y":
+             with open(cache,'wb') as csvfile: 
+                 outrow = csv.writer(csvfile, delimiter = ",",
+                              quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                 outrow.writerow(header)
+                 outrow.writerow(constant)
+                 outrow.writerow(selection) 
+             print "Parameters saved as new defaults."    
+    except ValueError:
+        print "Unable to write the defaults. Check file folder c:/anaconda/sigscript to see if it exists."
 
     print " Cal control written to:",calcontrol
 

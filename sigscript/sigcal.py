@@ -930,24 +930,24 @@ def plot_misfit_results(misfits,misfit_count,seismometer,best_index):
 
 
                                            
-def grid_search(outfile):                 # Subroutine grid search
+def grid_search(outfile,nsearch,lmult,hmult):                 # Subroutine grid search
                                           # Bring in the data and plot.                
                                           #
                                           # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
                                           # Set up the control constants.
-    print"Grid search will iterate through several scenarios in order to find "
-    print"a best fit poles & zeros combination to describe the sensitivity curve."
-    print"\nThere are several options for this search:"
-    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
-    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
-    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
-    print"Option 3: Optimize for amplitude, damping ratio and free period"
-    print"\n Most calibrations are best served with option 1.\n"
+#    print"Grid search will iterate through several scenarios in order to find "
+#    print"a best fit poles & zeros combination to describe the sensitivity curve."
+#    print"\nThere are several options for this search:"
+#    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
+#    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
+#    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
+#    print"Option 3: Optimize for amplitude, damping ratio and free period"
+#    print"\n Most calibrations are best served with option 1.\n"
 
-    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
-    if (Inputstring == ""):
-	Inputstring = 2        # use the default
-    nsearch = int(Inputstring) # use measured freeperiod 
+#    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
+#    if (Inputstring == ""):
+#	Inputstring = 2        # use the default
+#    nsearch = int(Inputstring) # use measured freeperiod 
 					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
                                           # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
                                           # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
@@ -959,14 +959,14 @@ def grid_search(outfile):                 # Subroutine grid search
     amp_units = "V*sec/m"
     amp_label = "Amplitude [" + amp_units + "]"
 
-    Inputstring = raw_input("What is the lower frequency (Hz) for averaging amplitude? \n (should be higher than the resonance freq.)")
-    if (Inputstring == ""):
-	Inputstring = "1.5"        # use the default    
-    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
-    Inputstring = raw_input("what is the upper frequency? (I sugggest 5.0 Hz)")
-    if (Inputstring == ""):
-        Inputstring = "5.0"
-    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
+#    Inputstring = raw_input("What is the lower frequency (Hz) for averaging amplitude? \n (should be higher than the resonance freq.)")
+#    if (Inputstring == ""):#
+#	Inputstring = "1.5"        # use the default    
+#    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
+#    Inputstring = raw_input("what is the upper frequency? (I sugggest 5.0 Hz)")
+#    if (Inputstring == ""):
+#        Inputstring = "5.0"
+#    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
                                           # Gather the relevant information from the output file
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
@@ -1046,6 +1046,10 @@ def main():
     calfile  = fileopts[2]            # The cal control file location
     outfile  = fileopts[3]            # The location of the ascii output file
     filetype = fileopts[4]            # The type of files to be processed.
+    nsearch = 1 # Default grid search type - Optimize amplitude only.
+    lmult = 1.70 # Default Lower frequency of grid search average amplitude calculation
+    hmult = 5.0 # Default upper frequency of grid search average amplitude calculation
+    
 
 #    print " calibration file: '{}'".format(calfile)
 #    print " output file : '{}'".format(outfile)
@@ -1187,7 +1191,7 @@ def main():
          
             print("output sent to {} \n\n".format(outfile))
     
-        grid_search(outfile)
+        grid_search(outfile,nsearch,lmult,hmult)
     else:
         print "No data files of the appropriate format were found within this directory."
 

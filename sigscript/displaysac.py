@@ -1,4 +1,9 @@
-import sys, # numpy as np, csv, time, string
+# Version 20150806
+# This simple code will display a single trace in formats of SAC, CSS, Miniseed
+# with basic units, and in terms of seconds.
+# It will open only the first trace within the stream. 
+
+import sys # numpy as np, csv, time, string
 import pylab as plt
 from obspy.core import read, Trace, Stream, UTCDateTime
 from obspy.sac import SacIO
@@ -11,6 +16,17 @@ from obspy.sac import SacIO
 infile = sys.argv[1]
 
 st = read(infile)
+CH0 = st[0].data
+i = []
+i.extend(range(0,len(st[0].data)))
+i[:] = [x / st[0].stats.sampling_rate for x in i]
 
-print(st)
-st.plot(color='gray',tick_format='%I:%M %p')
+plt.plot(i,CH0, '-b', label = "Waveform of counts vs seconds")
+
+plt.xlabel("Seconds")
+plt.ylabel("Counts")
+plt.show()
+
+st[0].plot(number_of_ticks = 48, tick_format='%M:%S',tick_rotation = 90, color = 'blue')
+
+

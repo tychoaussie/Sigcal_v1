@@ -1,3 +1,11 @@
+THIS IS ONLY FOR OLDER OBSPY INSTALLATIONS.
+UPDATE YOUR OBSPY to version 10.x by running the following command
+at the command prompt:
+
+conda install -c obspy obspy
+
+-----------
+
 This directory contains one file that will fix the css 3.0 file format
 in obspy. This will enable obspy to read css files with an 'i4'
 format.

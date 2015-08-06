@@ -366,7 +366,7 @@ def main():
                                                            #
                                                            # Now that the file has been created,
                                                            # Bring in the data and plot.                
-                                                           #
+    print "The name of the outfile is: '{}'".format(outfile)                                                           #
     fdata = load(outfile)
     header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
                                           # and includes the damping ratio, free period frequency, and channel calibration information
@@ -378,8 +378,8 @@ def main():
                                           # fdata[0][0][4] # Channel 3
                                           # fdata[0][0][5] # Laser position sensor in millivolts/micron
                                           # fdata[0][0][6] # Lcalconstant geometry correction factor
-    h = float(fdata[0][0][7])             # h damping ratio
-    Freeperiod = float(fdata[0][0][8])    # Free period oscillation in Hz  
+    h = float(fdata[0][0][11])             # h damping ratio
+    Freeperiod = float(fdata[0][0][12])    # Free period oscillation in Hz  
     Frequencies = []
     Sensitivities = []
     for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.

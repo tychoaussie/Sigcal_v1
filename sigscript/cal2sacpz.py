@@ -1,16 +1,21 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20140831"
+__version__ = "20150806"
 __license__ = "MIT"
 
+#
+# 20150806 version incorporates the grid search algorithm into the code for ease of installation
+# It also has interactive elements for setting the search parameters.
+#
 
 import os, sys, csv
 from scipy import signal
 from scipy.integrate import simps
-import pylab as plt
+import obspy.signal.invsim as sim
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
 import time, string
-import grid_search                         # Grid_search created by Hans Hartse, LANL
+#import grid_search                         # Grid_search created by Hans Hartse, LANL
                                            # This module must be installed in the python lib
                                            # directory that is referenced by whatever python
                                            # you are running. It also has an Obspy dependency
@@ -65,7 +70,130 @@ def load(infile):
     return (header,stack)
 
 
+                            # Function getcal: Retrieve the calibration control file
+def getcal(calcontrol): 
+    # calcontrol needs to include calibration constants as well as the station name and the channel name, and the particular constant for that channel.
+    # Thus a third line is necessary that specifies the channel identifier and the channel assignment of that channel.
+    # Channel name is located in the top row already, and it's position is associated with the sensitivity. So the third row designates the UUT and the
+    # laser position channel.
+    with open(calcontrol,'r') as fin:
+        list = csv.reader(fin)
+        rowcnt=0
+        cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3]
+        stack = []
+        header = []
+        calconstants = []
+        selection = []
+        for row in list:
+            stack.append(row)
+        header = stack[0]
+        calconstants = stack[1]
+        if len(stack)==3:# old calibration file format, so prompt the user for the appropriate channel assignments.
+            selection = stack[2]
+        else:
+            for i in range(0,4):
+                print "\n\nNo channels selected for calibration in cal control file."
+            for i in range(0,4):
+                print"Note: Channel {0} is listed as channel number {1}".format(header[i+1],i)
+        
+            selection.append(int(raw_input('Choose the channel number for the unit under test:  ')))
+            selection.append(int(raw_input('Choose the channel number for the laser position sensor:  ')))
 
+        cconstant[0] = calconstants[0]        # (test) Station name
+        cconstant[1] = header[1]              # (text) Channel name for CH0
+        cconstant[2] = float(calconstants[1]) # (float) adccal[0]: cal constant for ch 0 (microvolts / count)
+        cconstant[3] = header[2]              # (text) Channel name for CH1
+        cconstant[4] = float(calconstants[2]) # (float) adccal[1]: cal constant for ch 1 (microvolts / count)
+        cconstant[5] = header[3]              # (text) Channel name for CH2
+        cconstant[6] = float(calconstants[3]) # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
+        cconstant[7] = header[4]              # (text) Channel name for CH3
+        cconstant[8] = float(calconstants[4]) # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
+        cconstant[9] = float(calconstants[5]) # (float) laserres: cal constant for the laser ( mV / micron)
+        cconstant[10] = float(calconstants[6])# (float) lcalconst: cal constant for geometry correction factor
+        cconstant[11] = float(calconstants[7])# (float) h: Damping ratio for the seismometer as measured by engineer.
+        cconstant[12] = float(calconstants[8])# (float) resfreq: Free period resonance freq. as measured by engineer.
+        cconstant[13] = int(selection[0])     # channel number of channel being tested
+        cconstant[14] = int(selection[1])     # channel number of the laser position sensor data
+    return(cconstant)
+
+
+
+#
+#                                                     Function getoptions
+#                                       Function parses through the command line options
+#                                       and returns a file list of files that match
+#                                       the file type, or the station name. 
+#                                       File type .csv is the default. 
+#                                       File type .sac may be specified.
+#                                       If station name is used preceded by the word 'station'
+#                                       it is assumed the file type is sac
+#
+#                                       Returns: 1) Directory path
+#                                                2) list of files
+#                                                3) Cal file name
+#                                                4) output file name
+#                                                5) File type
+
+
+def getoptions():
+    directory = os.getcwd()
+    if ('\\' not in directory[-1:]) and ('/' not in directory[-1:]):
+                directory = directory+'\\'
+    filetype = 'sac' # Default file type. sac covers sac, miniseed.
+    filelist = []
+    station = 0
+    stname = 'unk'
+    for i in range(1,len(sys.argv)): # corrected this bug drb 20150721
+#    print "Option {0} is equal to '{1}'".format(i,sys.argv[i])
+        if 'csv' in string.lower(sys.argv[i]):
+            filetype = 'csv'
+#        print "Setting the file type to csv"
+        if 'sac' in string.lower(sys.argv[i]):
+            filetype = 'sac'
+        if 'msd' in string.lower(sys.argv[i]):
+            filetype = 'sac'
+        if 'css' in string.lower(sys.argv[i]):
+            filetype = 'css'
+        if ('\\' in sys.argv[i]) or ('/' in sys.argv[i]):
+            if ('\\' in sys.argv[i][-1:]) or ('/' in sys.argv[i][-1:]):
+                directory = sys.argv[i]
+            else: 
+                directory = sys.argv[i]+'\\'
+        if station:
+            filetype = 'sac'
+            stname = sys.argv[i]
+        if 'station' in string.lower(sys.argv[i]):
+            station = 1
+        else:
+            station = 0
+
+    calfile = directory+"calcontrol.cal"
+    outfile = directory+"calibration_output.cal"
+    cconstant = getcal(calfile)
+    buffer = os.listdir(directory)
+
+    for i in range(0,len(buffer)):
+        if '.csv' in string.lower(buffer[i]):
+            filtype = 'csv'
+        elif ('.sac' in string.lower(buffer[i]) and '.sacpz' not in string.lower(buffer[i])):
+            filtype = 'sac'
+        elif ('.wfd' in string.lower(buffer[i])):
+            filtype = 'css'
+            print "A wfd file was found within the directory and filtype set to css."
+        else:
+            filtype = 'unk'
+    
+        if (         (filtype == filetype) or (stname in buffer[i]) \
+            or (cconstant[0] in buffer[i]) or (cconstant[1] in buffer[i]) \
+            or (cconstant[3] in buffer[i]) or (cconstant[5] in buffer[i]) \
+            or (cconstant[7] in buffer[i])                             ) \
+                                         and \
+            ( ('.sacpz' not in buffer[i]) and ('png' not in buffer[i])  ):
+
+            filelist.append(buffer[i])
+#    print filelist
+
+    return(directory,filelist,calfile,outfile,filetype)
 
 
                                    #                       Function getconstants:
@@ -83,6 +211,527 @@ def getconstants(calcontrol):      # From calcontrol file, retrieve the list of 
                                    # constant[7] = (float) h: Damping ratio for the seismometer as measured by engineer.
                                    # constant[8] = (float) resfreq: Free period resonance freq. as measured by engineer.
     return(constant)
+
+######################## Start of grid_search algorithm by Hans Hartse ###################
+
+                                 ###### LA-CC-14-079 #######
+# Author: Hans Hartse, LANL : August, 2014
+# Modified by D Burk, Michigan State University
+# Version: 20140831
+#
+# Modification 20140828 : Adjust amplitude calculation to start at 2x freeperiod to 5x freeperiod
+# Also correct the path of the plot file output
+# Modification 20140831 : minor bug fixes to file output path, and of lmult,hmult
+#
+# holds the following functions:
+# write_sacpz - write a SAC-style pole-zero file where input is an ObsPy "dictionary"
+# find_pole_zero - grid search about MSU measured/estimated response, free-period, and damping factor
+# plot_response_curves - plots amplitude and phase curves using best-fit information from grid search
+# plot_misfit_results - plot an RMS misfit vs iteration number from grid search
+
+# write a function that will take obsby resp "dictionary" info
+# and create a sac pole-zero file
+# add one extra zero for sac pz to declare velocity, rather than displacement
+
+
+
+def write_sacpz(fname, resp):
+
+# resp is the obspy data structure holding poles, zeros, and scale factor
+    print "Writing the SAC poles and zeros file:\n"
+    with open(fname,'w') as f:
+        f.write("ZEROS {}\n".format(len(resp['zeros']) + 1 ))
+        print "ZEROS: {}".format(len(resp['zeros']) + 1 )
+        f.write("POLES {}\n".format(len(resp['poles'])))
+        print "POLES {}\n".format(len(resp['poles']))
+        for pole in resp['poles']:
+            f.write("{:e} {:e}\n".format(pole.real, pole.imag))
+            print "real:{:e} Imaginary:{:e}".format(pole.real, pole.imag)
+        f.write("CONSTANT {:e}".format(resp['gain']))
+        print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
+
+    spz = "SAC pole-zero file is named %s" % ( fname )
+    print ( "\n" )
+    print spz
+
+# done with custom sac pz write function "write_sacpz"
+
+
+
+# start of function that does a grid search to find a response that best fits the MSU measured response
+# function "find_pole_zero"
+                              # Input parameters:
+                              # freq_msu: List of frequencies of n terms
+                              # amp_msu: List of ampltudes at those frequencies (n terms)
+                              # seismometer: Seismometer description
+                              # msu_freep: Measured Free-period frequency from calibration
+                              # msu_damp: Measured damping ratio from calibration
+                              # nsearch: Constraint options (0 = fully constrainted,1,2,3 = full grid search)
+                              # coarse_search: The step size for grid searching parameters (Typ 0.1)
+                              # fine_search: Step size for fine grid searching (typ 0.005)
+                              # nloops: Number of iterations to try for best fit (Typ. 4)
+                              # ngrids: Total number of grid points within the search to use (typ. 20)
+ 
+def find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,coarse_search,fine_search,nloops,ngrids,lmult,hmult):
+
+# ngrids is the number of grid points to be searched for each parameter, per each "percentage" loop
+                        # At nsearch = 3, grid search on amplitude, damping ratio, and free period.
+    nfreqs = ngrids
+    if ( nsearch < 3 ): # Set flags. Free period is constrained at nsearch = 2
+        nfreqs = 1
+    ndamps = ngrids
+    if ( nsearch < 2 ): # Set flags. Free period & Damping ratio is constrained at nsearch = 1
+        ndamps = 1
+    nscales = ngrids
+    if ( nsearch < 1 ): # set flags. Free period, Damping Ratio, and amplitude are all constrained.
+        nscales = 1
+
+# search the grids nloops times, first between coarse_search percent smaller than starting params 
+#   and coarse_search percent larger than starting params, then, eventually search only within fine_search percent
+#   of the best params found on each previous loop search
+
+    search_range = np.linspace(coarse_search, fine_search, nloops)
+
+# freq_msu is array holding frequency values where MSU made amp measurements
+# amp_msu is array holding amplitude values measured by MSU
+# note that msu_freep is the MSU estimated freee period in seconds
+
+# now find average amplitude from MSU measurements where freq > 1 Hz
+#
+# edit: Change the average amplitude calculation to use frequencies greater than 
+# 3x the free period frequency but less than 8x the free-period frequency.
+# This program calculates only two poles & zeros: Response should be flat within
+# this passband and avoids any weird issues at higher frequencies and keeps 
+# calculation off the knee of the response curve in cases of high or low damping
+# ratios
+# - drb 08/28/2014
+
+    count = 0
+    amp_average = 0.
+#    lmult = lmult/msu_freep # make it a multiplier of freeperiod in Hz (lowest)
+#    hmult = hmult/msu_freep                                         # (Highest)
+    
+    for i, freq in enumerate(freq_msu):
+        if ( freq > lmult) and (freq < hmult):  
+                                      # Set frequency discriminator to msu_freep * 2 to get off the 
+                                      # knee of the curve for SP instruments - drb
+           amp_average = amp_average + amp_msu[i] 
+           count += 1
+    amp_average = amp_average / float(count)
+
+                                      # set preliminary "best parameters"
+
+    best_freep = msu_freep 
+    best_damp = msu_damp
+    best_scale = amp_average
+
+                                      # best_fit is the RMS misfit between MSU observed 
+                                      # and model amplitudes in log10 space,
+                                      #    an outrageously large value, initially
+
+    best_fit = 1000000.
+
+                                      # an index counter to keep track of the total number of searches/misfits
+    j = 0
+                                      # for use with later plotting
+                                      # prepare array to hold total number of interation results
+
+    misfits = np.zeros(nscales * ndamps * nfreqs * nloops)
+
+                                      # prepare array to store each iteration number
+
+    misfit_count = np.zeros(nscales * ndamps * nfreqs * nloops)
+
+                                      # start of loops 
+
+    for range in search_range:
+
+                                      # build a list of "corner frequencies" to test
+                                      # I think these "corner frequencies" - in ObsPy Speak means 1/free period of seismometer
+
+        freep_adjust = best_freep * range
+        fp_long = best_freep + freep_adjust
+        fp_short = best_freep - freep_adjust
+
+                                      # the case where free period is held constant at the MSU-supplied value
+
+        if ( nsearch < 3 ):
+            fp_long = best_freep
+            fp_short = best_freep
+
+                                      # np.linspace will create an array from low_freq to high_freq over nfreqs of even spacing
+
+        corners = np.linspace(1./fp_long, 1./fp_short, nfreqs)
+        print ( "\nsearching free periods between %f and %f seconds" % ( fp_long, fp_short ) )
+
+                                      # build a list of damping factors to test
+
+        damp_adjust = best_damp * range
+        low_damp = best_damp - damp_adjust 
+        high_damp = best_damp + damp_adjust
+        if ( high_damp >= 1.0 ):
+            print ( "\nwarning - damping factor is %f - must be below 1.0 - setting damping to 0.9999" % ( high_damp ) )
+            high_damp = 0.9999
+        if ( nsearch < 2 ):
+            low_damp = best_damp
+            high_damp = best_damp
+
+        damps = np.linspace(low_damp, high_damp, ndamps)
+        print ( "searching damping factors between %f and %f" % ( low_damp, high_damp ) )
+
+                                      # build a list of scale factors to test
+
+        scale_adjust = best_scale * range
+        low_scale = best_scale - scale_adjust 
+        high_scale = best_scale + scale_adjust
+        if ( nsearch < 1 ):
+            low_scale = best_scale
+            high_scale = best_scale
+            nscales = 1
+        scales = np.linspace(low_scale, high_scale, nscales)
+        print ( "searching scale factors between %f and %f" % ( low_scale, high_scale ) )
+
+                                      # here are the grid search loops, over corners, dampings, and scales
+
+        for corner in corners:   
+            for damp in damps:
+                for scale in scales:
+
+                                      # the key obspy function to find inst resp based on "corner frequency" and damping constant 
+                                      # cornFreq2Paz takes an instrument's corner freq and damping factor to produce
+                                      #   an Obspy-style paz file
+
+                    resp = sim.cornFreq2Paz(corner, damp) 
+                    resp['gain'] = scale
+                    amp_predicted = np.zeros_like(freq_msu)
+                    for i, freq in enumerate(freq_msu):
+                        amp_predicted[i] = sim.paz2AmpValueOfFreqResp(resp, freq) 
+    
+                    misfit = np.linalg.norm(np.log10(amp_msu) - np.log10(amp_predicted))
+                    misfits[j] = misfit
+                    misfit_count[j] = j + 1
+       
+                    if ( misfit < best_fit ):
+                       best_fit = misfit
+                       best_corner = corner
+                       best_damp = damp
+                       best_scale = scale
+                       best_index = j
+
+                    j = j + 1
+
+                                      # find the best free period, which is 1/best_corner
+                                      # this happens at the end of a particlar grid search loop
+
+        best_freep  = 1./best_corner 
+
+                                      # end of all loops
+
+                                      # find poles and zeros using best corner freq, damp and scale 
+
+    resp = sim.cornFreq2Paz(best_corner, best_damp) 
+    resp['gain'] = best_scale
+    return(resp, best_freep, best_damp, best_scale, amp_average, misfits, misfit_count, best_index) 
+                                      # end of function "find_pole_zero"
+
+
+
+
+
+
+
+#
+#
+                             # start of function "plot_response_curve"
+                             # function plot_response_curve
+#
+#
+
+def plot_response_curves(resp, freq_msu, amp_msu, best_freep, best_damp, best_scale, msu_freep,\
+msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
+
+                             # build an array of zeros with same length as freq_msu
+
+    amp_predicted = np.zeros_like(freq_msu)
+
+                             # loop over the frequencies present in the msu data file one at a time
+                             # to find the amplitudes predicted for a given frequency 
+                             # based on the best resp file
+
+    for i, freq in enumerate(freq_msu):
+        amp_predicted[i] = sim.paz2AmpValueOfFreqResp(resp, freq) 
+
+                             # this code taken straight from the Obspy webpage examples 
+                             # numbers for obspy to create a resp curve, based on an fft of a time series
+                             # with sample rate of 0.01
+
+    samp_rate = 0.01
+    npts = 16384
+
+                             # obtain "continuous" amp and freq values from obsby function to display continuous response curve
+
+    poles = resp['poles']
+    zeros = resp['zeros']
+    h, f = sim.pazToFreqResp(poles, zeros, best_scale, samp_rate, npts, freq=True)
+
+                             # plotting amp vs freq
+
+    plt.figure()
+
+#plt.subplot(121)
+                             # plot the continuous response curve, and the msu data, 
+
+    plt.loglog(f, abs(h), freq_msu, amp_msu, 'go', markersize=6 )
+
+                             # plot the predicted amplitudes at the MSU frequencies
+
+    plt.loglog(freq_msu, amp_predicted, 'ro', markersize=4 )
+
+                             # labels
+
+    plt.xlabel('Frequency [Hz]')
+
+                             # this str function is part of the standard Python, no need to "import" a special "package"
+
+    plt.ylabel( str(amp_label) )
+    plt.suptitle('Frequency vs Amplitude: Channel ' + str(seismometer) )
+
+                             # plot over range from 2/3 * minimum frequency to 2.0 * maximum frequency  
+                             # and over range from 2/3 * minimum amplitude to 2.0 * maximum amplitude  
+
+    plx_min = 0.05 # freq_msu[0] * 0.66
+    plx_max = 40.0 # freq_msu[len(freq_msu) - 1] * 2.00
+    ply_min = 0.10 # amp_msu[0] * 0.66
+    ply_max = 1000.0 # amp_msu[len(freq_msu) - 1] * 2.00
+    plt.axis([plx_min, plx_max, ply_min, ply_max])
+
+    freep_per = 100. * ( abs ( best_freep - msu_freep ) / msu_freep )
+    damp_per = 100. * ( abs ( best_damp - msu_damp ) / msu_damp )
+    scale_per = 100. * ( abs ( best_scale - amp_average ) / amp_average )
+    rsp = ""
+    cdt = "Calibration date = "+ (time.strftime("%d/%m/%Y %H:%M:%S"))
+    tfp = "free period = %.3f Hz (%.2f%% MSU: %.3f)" % ( 1./best_freep, freep_per, 1./msu_freep )
+    print ( "\n" )
+    print tfp
+    tdr = "damping = %.3f (%.2f%% MSU: %.3f)" % ( best_damp, damp_per, msu_damp )
+    print tdr
+    tsf = "scale = %.2f V.m/sec( Avg. amp: %.2f)" % ( best_scale, amp_average )
+    print tsf
+    spz = "File: %s" % ( sac_pz_file )
+    #f.write("ZEROS {}\n".format(len(resp['zeros']) + 1 ))
+    zzz = "ZEROS: {}".format(len(resp['zeros']) + 1 )
+     #   f.write("POLES {}\n".format(len(resp['poles'])))
+    ppp = "POLES {}\n".format(len(resp['poles']))
+    for pole in resp['poles']:
+      #      f.write("{:e} {:e}\n".format(pole.real, pole.imag))
+        rsp = rsp+"real:  {:e} Imaginary:  {:e}\n".format(pole.real, pole.imag)
+       # f.write("CONSTANT {:e}".format(resp['gain']))
+    print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
+ 
+
+                             # post results as text lines on the plot
+
+    xtext = plx_min * 7.
+    ytext = ply_min * 60
+    plt.text( xtext, ytext, cdt )
+    ytext = ply_min * 40
+    plt.text( xtext, ytext, tfp )
+    ytext = ply_min * 30
+    plt.text( xtext, ytext, tdr )
+    ytext = ply_min * 20
+    plt.text( xtext, ytext, tsf )
+    ytext = ply_min * 10
+    plt.text( xtext, ytext, zzz )
+    ytext = ply_min * 5
+    plt.text( xtext, ytext, ppp )
+    ytext = ply_min * 2
+    plt.text( xtext, ytext, rsp )
+
+                             # post some symbols and text for a legend
+
+    amp_symbol = np.zeros(1)
+    amp_symbol[0] = best_scale * 1.0
+    freq_symbol = np.zeros(1)
+    freq_symbol[0] = freq_msu[0]
+    plt.loglog(freq_symbol, amp_symbol, 'go', markersize=6 )
+    plt.text( freq_symbol[0] * 1.1, amp_symbol[0], 'Measurement', va='center' )
+    amp_symbol[0] = best_scale * 0.70
+    freq_symbol[0] = freq_msu[0]
+    plt.loglog(freq_symbol, amp_symbol, 'ro', markersize=4 )
+    plt.text( freq_symbol[0] * 1.1, amp_symbol[0], 'Model Best Fit', va='center' )
+    plt.grid(True, which='major')
+    plt.grid(True, which='minor')
+
+    fileopts = getoptions()           # Use the getoptions def to parse the command line options.
+    wdir     = fileopts[0]            # working directory
+
+    fig = wdir+"\\"+seismometer + '_freq_v_amp' + '.png' # Place it in current working directory - drb
+    txt = "best-fit freq. vs ampl. plot: %s" % ( fig )
+    print "\n"
+    print txt
+    plt.savefig( fig )
+
+    plt.show()
+#    plt.close()
+
+
+                             # plotting phase vs freq, not sure how much this can be trusted
+
+#plt.subplot(122)
+
+    plt.figure()
+
+                             #take negative of imaginary part
+
+    phase = np.unwrap(np.arctan2(-h.imag, h.real))
+    plt.semilogx(f, phase)
+    plt.xlabel('Frequency [Hz]')
+
+    plt.ylabel('Phase [radians]')
+
+                             # title, centered above both subplots
+
+    plt.suptitle('Frequency vs Phase: Seismometer ' + str(seismometer) )
+    plt.axis([0.004, 100, -3.5, 0.5])
+
+                             # make more room in between subplots for the ylabel of right plot
+
+#plt.subplots_adjust(wspace=0.3)
+    plt.grid(True, which='major')
+    plt.grid(True, which='minor')
+    fig = wdir+"\\"+ seismometer + '_freq_v_phase' + '.png' # save in data directory
+    txt = "plotted best-fit frequency vs phase results - saved in file: %s" % ( fig )
+    print "\n"
+    print txt
+    plt.savefig( fig )
+#    plt.show()
+#    plt.close()
+
+# end of function plot_response_curves
+
+
+
+
+# start function to plot iteration number vs misfit for grid search work
+
+def plot_misfit_results(misfits,misfit_count,seismometer,best_index):    
+
+# plotting count vs misfit for final grid search 
+
+    misfit_max = np.amax(misfits)
+    misfit_min = np.amin(misfits)
+    j = len(misfit_count)
+    plt.figure()
+
+#plt.subplot(121)
+
+    plt.plot(misfit_count, misfits, 'bo', markersize=4 )
+    plt.plot(misfit_count[best_index], misfits[best_index], 'r^', markersize=8 )
+    plt.xlabel('Grid Search Interation Count')
+    plt.ylabel( 'RMS Misfit in Log10 Space' )
+    plt.suptitle('Final Grid Search: Seismometer ' + str(seismometer) )
+    plt.axis([-5, j + 5, misfit_min * 0.9, misfit_max * 1.1])
+    plt.grid(True, which='major')
+    plt.grid(True, which='minor')
+    fig = os.cwd()+seismometer + '_misfit' + '.png'
+    txt = "plotted rms misfit vs iteration number - saved in file: %s" % ( fig )
+    print "\n"
+    print txt
+    plt.savefig( fig )
+    plt.show()
+    plt.close()
+
+
+
+                                           
+def grid_search(outfile,nsearch,lmult,hmult):                 # Subroutine grid search
+                                          # Bring in the data and plot.                
+                                          #
+                                          # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
+                                          # Set up the control constants.
+#    print"Grid search will iterate through several scenarios in order to find "
+#    print"a best fit poles & zeros combination to describe the sensitivity curve."
+#    print"\nThere are several options for this search:"
+#    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
+#    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
+#    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
+#    print"Option 3: Optimize for amplitude, damping ratio and free period"
+#    print"\n Most calibrations are best served with option 1.\n"
+
+#    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
+#    if (Inputstring == ""):
+#	Inputstring = 2        # use the default
+#    nsearch = int(Inputstring) # use measured freeperiod 
+					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+                                          # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
+                                          # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
+                                          # 3: Grid search for optimum amplitude, damping ratio AND free period
+    coarse_search = 0.10                  # Typically 0.10
+    fine_search = 0.005                   # Typically 0.005
+    nloops = 6                            # Number of iterations through the grid (typically 4 or 5)
+    ngrids = 21                           # Number of steps (typically 20)
+    amp_units = "V*sec/m"
+    amp_label = "Amplitude [" + amp_units + "]"
+
+#    Inputstring = raw_input("What is the lower frequency (Hz) for averaging amplitude? \n (should be higher than the resonance freq.)")
+#    if (Inputstring == ""):#
+#	Inputstring = "1.5"        # use the default    
+#    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
+#    Inputstring = raw_input("what is the upper frequency? (I sugggest 5.0 Hz)")
+#    if (Inputstring == ""):
+#        Inputstring = "5.0"
+#    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
+                                          # Gather the relevant information from the output file
+    fdata = load(outfile)
+    header = fdata[0]                     # The header contains the initial constants used for creation of the datafile
+                                          # and includes the damping ratio, free period frequency, and channel calibration information
+                                          # in this order:
+    seismometer = fdata[0][0][0]          # fdata[0][0][0]  # Station name
+                                          # fdata[0][0][1]  # Channel 0 name
+                                          # fdata[0][0][2]  # Channel 0 ADC sensitivity in microvolts / count
+                                          # fdata[0][0][3]  # Channel 1 name
+                                          # fdata[0][0][4]  # Channel 1 ADC sensitivity
+                                          # fdata[0][0][5]  # Channel 2 name
+                                          # fdata[0][0][6]  # Channel 2 ADC sensitivity
+                                          # fdata[0][0][7]  # Channel 3 name
+                                          # fdata[0][0][8]  # Channel 3 ADC sensitivity 
+                                          # fdata[0][0][9]  # Laser position sensor in millivolts/micron
+                                          # fdata[0][0][10] # Lcalconstant geometry correction factor
+    msu_damp = float(fdata[0][0][11])     # fdata[0][0][11] # h damping ratio
+    msu_freep = 1/float(fdata[0][0][12])  # fdata[0][0][12] # Free period oscillation in Seconds, not Hz (as stored in cal file).
+                                          # fdata[0][0][13] # Selected channel for sensor data
+                                          # fdata[0][0][14] # Selected channel for laser data
+    channel = seismometer+'_CH_'+fdata[0][0][(int(fdata[0][0][13])*2)+1]
+    freq_msu = []                         # Initialize the frequency array
+    amp_msu = []                          # Initialize the matching amplitude array
+
+    for i in range(0,len(fdata[1])):      #        Build the list of frequencies and sensitivities from the file.
+        freq_msu.append(float(fdata[1][i][0]))     # Field 0 is the frequency
+        amp_msu.append(float(fdata[1][i][1]))      # Field 1 is the average sensitivity
+
+                                          #    plot_curve(Station,Frequencies,Sensitivities,Freeperiod,h)
+                                          #    plot_curve2(Station,Frequencies,Calint,Calderiv,Freeperiod,h)
+
+                                          # Perform the grid search and create the curve
+
+    (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
+     find_pole_zero(freq_msu,amp_msu,channel,msu_freep,msu_damp,nsearch,\
+     coarse_search,fine_search,nloops,ngrids,lmult,hmult)
+
+                                          # Create the sac poles & zeros file
+
+    sac_pz_file = os.getcwd() +'\\'+ channel + '.sacpz' # Set the file name to whatever station name is.
+    write_sacpz(sac_pz_file,resp)
+
+                                          # Plot the data for the user.
+
+    plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
+    msu_freep,msu_damp,amp_average,amp_label,channel, sac_pz_file)
+
+
+
+##############################################################################################
+
 
 
 
@@ -103,7 +752,42 @@ def main():
                                       # argv[5] = highest multiple of the freeperiod freq to include
 
 # Commmand example: 
-# c:\Python27>Python.exe cal2sacpz.py c:\seismo\caldata\momo\cal_output.cal 2 
+# c:\Python27>Python.exe cal2sacpz.py c:\seismo\caldata\momo\cal_output.cal 2
+ 
+    fileopts = getoptions()           # Use the getoptions def to parse the command line options.
+    wdir     = fileopts[0]            # working directory
+    filelist = fileopts[1]            # the file list that complies to the file type or station name
+    calfile  = fileopts[2]            # The cal control file location
+    outfile  = fileopts[3]            # The location of the ascii output file
+    filetype = fileopts[4]            # The type of files to be processed.
+    nsearch = 1 # Default grid search type - Optimize amplitude only.
+    lmult = 1.70 # Default Lower frequency of grid search average amplitude calculation
+    hmult = 5.0 # Default upper frequency of grid search average amplitude calculation
+
+    print"Grid search will iterate through several scenarios in order to find "
+    print"a best fit poles & zeros combination to describe the sensitivity curve."
+    print"\nThere are several options for this search:"
+    print"Option 0: Constrain all parameters to the calibration file (no grid search)"
+    print"Option 1: Optimize amplitude but constrain damping ratio and free period"
+    print"Option 2: Optimize amplitude, damping ratio but constrain free period"
+    print"Option 3: Optimize for amplitude, damping ratio and free period"
+    print"\n Most calibrations are best served with option 1.\n"
+
+    Inputstring = raw_input("\n\n Choose grid search option: 0,1,2, or 3):")
+    if (Inputstring == ""):
+	    Inputstring = nsearch        # use the default
+    nsearch = int(Inputstring) # use measured freeperiod 
+
+    Inputstring = raw_input("What is the lower frequency (Hz) for averaging amplitude? \n (should be 1.5x higher than the resonance freq.)")
+    if (Inputstring == ""):#
+	    Inputstring = lmult        # use the default    
+    lmult = float(Inputstring) # Lower freq. bandpass multiple (typically 2)
+
+    Inputstring = raw_input("what is the upper frequency? (I sugggest 5.0 Hz)")
+    if (Inputstring == ""):
+        Inputstring = hmult
+    hmult = float(Inputstring) # higher freq. bandpass multiple (typically 5)
+					  # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
 
                                       # where momo is the working directory containing the csv files
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
@@ -113,14 +797,13 @@ def main():
     outputfile_defined = False
     filelist = []
     dir=""
-    infile = os.getcwd()+"\\calibration_output.cal"
-#    outfile = os.getcwd()+"\calibration_output.cal"
-#    calfile = os.getcwd()+"\calcontrol.cal"
+    infile = fileopts[3]
+
 
                                           # Prepare to make the poles and zeroes from Hans Hartse gridsearch algorithm
                                           # Set up the control constants.
 
-    nsearch = 2 # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
+#                                         # use measured freeperiod # 0: Full constraint on grid search to use MSU-measured amplitudes, damping ratio and free period.
                                           # 1: Optimize for amplitude w/i passband but constrain damping ratio and free period.
                                           # 2: Optimize amplitude w/i passband, optimize damping ratio, but constrain free period.
                                           # 3: Grid search for optimum amplitude, damping ratio AND free period
@@ -130,25 +813,23 @@ def main():
     ngrids = 20                           # Number of steps (typically 20)
     amp_units = "V*sec/m"
     amp_label = "Amplitude [" + amp_units + "]"
-    lmult = 2
-    hmult = 8
 
 
-    if optioncount > 1:
+#    if optioncount > 1:
 
-        if optioncount >= 6:
-            hmult = float(sys.argv[5])
-        if optioncount >= 5:                          # Assume that output file has been designated            
-            lmult = float(sys.argv[4])
-        if optioncount >= 4:
-            nloops = int(sys.argv[3])
-        if optioncount >= 3:
-            nsearch = int(sys.argv[2])
-        if optioncount >=2:
-            infile = sys.argv[1]
-        else:
-            print "Command usage: python cal2sacpz.py infile.cal [nsearch] [nloop] [lmult] [hmult]"
-            print "Not enough parameters specified."
+#        if optioncount >= 6:
+#            hmult = float(sys.argv[5])
+#        if optioncount >= 5:                          # Assume that output file has been designated            
+#            lmult = float(sys.argv[4])
+#        if optioncount >= 4:
+#            nloops = int(sys.argv[3])
+#        if optioncount >= 3:
+#            nsearch = int(sys.argv[2])
+#        if optioncount >=2:
+#            infile = sys.argv[1]
+#        else:
+#            print "Command usage: python cal2sacpz.py infile.cal [nsearch] [nloop] [lmult] [hmult]"
+#            print "Not enough parameters specified."
            
 
 #        constant = getconstants(calfile)
@@ -172,8 +853,9 @@ def main():
                                           # fdata[0][0][5] # Laser position sensor in millivolts/micron
                                           # fdata[0][0][6] # Lcalconstant geometry correction factor
 
-    msu_damp = float(fdata[0][0][7])      # h damping ratio
-    msu_freep = float(fdata[0][0][8])     # Free period oscillation in Hz  
+    msu_damp = float(fdata[0][0][11])      # h damping ratio
+    msu_freep = 1/float(fdata[0][0][12])     # Free period oscillation in Hz
+    print "msu free period is {}".format(msu_freep)  
     freq_msu = []                         # Initialize the frequency array
     amp_msu = []                          # Initialize the matching amplitude array
 
@@ -187,17 +869,17 @@ def main():
                                           # Perform the grid search and create the curve
 
     (resp,best_freep,best_damp,best_scale,amp_average,misfits,misfit_count,best_index) = \
-     grid_search.find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,\
+     find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,\
      coarse_search,fine_search,nloops,ngrids,lmult,hmult)
 
                                           # Create the sac poles & zeros file
 
     sac_pz_file = os.getcwd() +'\\'+ seismometer + '.sacpz' # Set the file name to whatever station name is.
-    grid_search.write_sacpz(sac_pz_file,resp)
+    write_sacpz(sac_pz_file,resp)
 
                                           # Plot the data for the user.
 
-    grid_search.plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
+    plot_response_curves(resp,freq_msu,amp_msu,best_freep,best_damp,best_scale,\
     msu_freep,msu_damp,amp_average,amp_label,seismometer, sac_pz_file)
 
 
