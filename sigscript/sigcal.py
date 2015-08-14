@@ -1,7 +1,8 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150728"
+__version__ = "20150814"
 __license__ = "MIT"
 
+# 20150814 - Add some error traps for bad files and fix some printed fields.
 # 20150721 - replace dependency on Python27 directory with Anaconda dependency
 # 20150721 - change the recommended defaults for grid search to Hz.
 # 20150722 - Change the CWD used for the plots in gridsearch to the appropriate directory
@@ -190,7 +191,7 @@ def getoptions():
             ( ('.sacpz' not in buffer[i]) and ('png' not in buffer[i])  ):
 
             filelist.append(buffer[i])
-    print filelist
+#cd    print filelist
 
     return(directory,filelist,calfile,outfile,filetype)
 
@@ -201,7 +202,7 @@ def getoptions():
 def sacparse(wdir,filelist,senchan,lsrchan):
     sensorfiles = []
     laserfiles = []
-    print "senchan set to: {0} and lstchan set to: {1} \n File list contains {2} items.".format(senchan,lsrchan,len(filelist))
+    print "senchan set to: {0} and lsrchan set to: {1} \n File list contains {2} items.".format(senchan,lsrchan,len(filelist))
     for i in range(0,len(filelist)):
 #        print filelist[i]
         if senchan in filelist[i]:
@@ -471,8 +472,11 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
                                       # Integral of sensor = sensor / 2pi*f
                                       # Derivative of laser = laser * 2pi*f
                                       # in either case, the ratio works out to sensor_rms/(2pi*f*laser_rms)
-
-    fcal = sensor_rms/(2*np.pi*Frequency*laser_rms) # This is the calibration factor.
+    fcal = 0.0
+    cal = sensor_rms/(2*np.pi*Frequency*laser_rms) # This is the calibration factor.
+    if not np.isnan(cal):
+        fcal = cal
+    
                                       #
                                       #     Reset the ground motion back to laser displacement
                                       #     for output 
@@ -493,7 +497,9 @@ def process(sensor,laser,delta,cconstant):          # cconstant is a list of the
                                       #     Field 5:Name of input file (text)
                                       #
                                       # 
-                                      #
+                                      #     Validate the fields for NaN's
+
+
  
     return(Frequency,sensor_rms,laser_rms,fcal,Rn,h,gmcorrect)
 
@@ -534,7 +540,7 @@ def write_sacpz(fname, resp):
             f.write("{:e} {:e}\n".format(pole.real, pole.imag))
             print "real:{:e} Imaginary:{:e}".format(pole.real, pole.imag)
         f.write("CONSTANT {:e}".format(resp['gain']))
-        print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
+        print "\nsensor gain constant {:2.3f} Volts/(m/sec)".format(resp['gain'])
 
     spz = "SAC pole-zero file is named %s" % ( fname )
     print ( "\n" )
@@ -611,12 +617,14 @@ def find_pole_zero(freq_msu,amp_msu,seismometer,msu_freep,msu_damp,nsearch,coars
     best_damp = msu_damp
     best_scale = amp_average
 
+
                                       # best_fit is the RMS misfit between MSU observed 
                                       # and model amplitudes in log10 space,
                                       #    an outrageously large value, initially
 
     best_fit = 1000000.
-
+    best_corner = 1/msu_freep
+    best_index = 0
                                       # an index counter to keep track of the total number of searches/misfits
     j = 0
                                       # for use with later plotting
@@ -801,7 +809,7 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
     print tfp
     tdr = "damping = %.3f (%.2f%% MSU: %.3f)" % ( best_damp, damp_per, msu_damp )
     print tdr
-    tsf = "scale = %.2f V.m/sec( Avg. amp: %.2f)" % ( best_scale, amp_average )
+    tsf = "scale = %.3f Volts/(m/sec)( Avg. amp: %.2f)" % ( best_scale, amp_average )
     print tsf
     spz = "File: %s" % ( sac_pz_file )
     #f.write("ZEROS {}\n".format(len(resp['zeros']) + 1 ))
@@ -812,7 +820,7 @@ msu_damp, amp_average, amp_label, seismometer, sac_pz_file):
       #      f.write("{:e} {:e}\n".format(pole.real, pole.imag))
         rsp = rsp+"real:  {:e} Imaginary:  {:e}\n".format(pole.real, pole.imag)
        # f.write("CONSTANT {:e}".format(resp['gain']))
-    print "\nsensor gain constant {:e} V.m/sec".format(resp['gain'])
+    print "\nsensor gain constant {:2.3f} Volts/(m/sec)".format(resp['gain'])
  
 
                              # post results as text lines on the plot
@@ -1160,8 +1168,8 @@ def main():
             (freq,senrms,lasrms,cal,resonance,damprat,gm_c) = process(data[0],data[1],data[2],cal_constants) # Process the file and output to outfile based on parameters
 
             # Process input arguments are sensor data, laser data, delta and cal_constants
-            frequency.append(freq)
 
+            frequency.append(freq)
             sensor.append(senrms)
             laser.append(lasrms)
             calnum.append(cal)
@@ -1169,7 +1177,7 @@ def main():
             h.append(damprat)
             gm_correct.append(gm_c)
             filenames.append(filelist[n])
-
+#    print "length of frequency array is {} items.".format(len(frequency))
     if len(frequency)<>0:
 
                                           # Write out the header for the csv output file containing the calibration curve data
@@ -1183,11 +1191,13 @@ def main():
                                           
         with open(outfile,'a') as csvfile:    # use 'wb' in place of 'a' if you want to overwrite the file.
             for n in range(len(frequency)):
-                outrow = csv.writer(csvfile, delimiter = ",",
-                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                outrow.writerow([frequency[n],calnum[n],sensor[n],laser[n],rn[n],h[n],gm_correct[n],filenames[n]])
                 print("fcal calculates to: {0:.3f} for frequency {1:.2f} Hz".format(calnum[n],frequency[n]))
-
+                if calnum[n]<>0.00:
+                    outrow = csv.writer(csvfile, delimiter = ",",
+                                        quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                    outrow.writerow([frequency[n],calnum[n],sensor[n],laser[n],rn[n],h[n],gm_correct[n],filenames[n]])
+                else:
+                    print "    entry not written to cal file due to bad amplitude or frequency calculation."
          
             print("output sent to {} \n\n".format(outfile))
     
