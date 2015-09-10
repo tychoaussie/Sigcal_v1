@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150814"
+__version__ = "20150910"
 __license__ = "MIT"
 
 # 20150814 - Add some error traps for bad files and fix some printed fields.
@@ -50,7 +50,7 @@ __license__ = "MIT"
 
 # Now, the most important part - The legalese: 
 
-# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE

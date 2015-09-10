@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150803"
+__version__ = "20150910"
 __license__ = "MIT"
 # Fixed bug in convert definition that didn't like being in the same working directory as the data.
 # Fixed bug in sac write that wouldnt work in the 32-bit installations.
@@ -20,7 +20,7 @@ from obspy.core import read, Trace, Stream, UTCDateTime
 from obspy.sac import SacIO
 
 # Now, the most important part -- The legalese:
-# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE

@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150806"
+__version__ = "20150910"
 __license__ = "MIT"
 
 # 20150806 version : Load the calcontrolcache from main script directory for starting values
@@ -9,7 +9,7 @@ __license__ = "MIT"
 import os, sys, csv,string
 
 # Now, the most important part -- The legalese:
-# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE

@@ -1,11 +1,11 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150721"
+__version__ = "20150910"
 __license__ = "MIT"
 
 # Repaired the file import to handle csv, sac, and css files
 
 # Now, the most important part -- The legalese:
-# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE

@@ -1,10 +1,10 @@
-# Version 20150806
+# Version 20150910
 # This simple code will display a single trace in formats of SAC, CSS, Miniseed
 # with basic units, and in terms of seconds.
 # It will open only the first trace within the stream. 
 
 # Now, the most important part -- The legalese:
-# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE
