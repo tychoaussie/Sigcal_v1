@@ -2,6 +2,7 @@ __author__ = "Daniel Burk <burkdani@msu.edu>"
 __version__ = "20150910"
 __license__ = "MIT"
 
+# 20150910 - Fix the laser position query to say 'laser' rather than 'sensor'
 # 20150806 version : Load the calcontrolcache from main script directory for starting values
 # then save these values to the cache at the end, if the user desires it.
 #
@@ -243,10 +244,10 @@ def main():
 
 
     try:
-        print 'Choose the channel number representing the sensor:(default = [ {} ]'.format(selection[1])
+        print 'Choose the channel number representing the Laser:(default = [ {} ]'.format(selection[1])
         invar = str(raw_input('--> '))
         if len(invar)==0:
-            print "Channel number {} assigned to represent the sensor.\n\n".format(selection[1])
+            print "Channel number {} assigned to represent the Laser.\n\n".format(selection[1])
             invar = selection[1]
         if int(invar)>=0 and int(invar) <= 3:
             selection[1] = int(invar)
