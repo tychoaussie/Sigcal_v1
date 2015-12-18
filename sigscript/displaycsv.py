@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150910"
+__version__ = "20140724"
 __license__ = "MIT"
 
 import os, sys, csv
@@ -13,7 +13,7 @@ import time, string
                                            # from obspy.sac import SacIO
 
 # Now, the most important part -- The legalese:
-# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT ©  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE

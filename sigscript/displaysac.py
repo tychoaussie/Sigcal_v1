@@ -1,4 +1,4 @@
-# Version 20150910
+# Version 20150806
 # This simple code will display a single trace in formats of SAC, CSS, Miniseed
 # with basic units, and in terms of seconds.
 # It will open only the first trace within the stream. 

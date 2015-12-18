@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150910"
+__version__ = "20150721"
 __license__ = "MIT"
 
 import os, sys, csv

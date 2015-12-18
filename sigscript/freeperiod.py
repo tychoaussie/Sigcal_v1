@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150910"
+__version__ = "20150721"
 __license__ = "MIT"
 
 # Repaired the file import to handle csv, sac, and css files

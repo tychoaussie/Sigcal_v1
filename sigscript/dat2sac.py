@@ -1,8 +1,25 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150910"
+__version__ = "20151216"
 __license__ = "MIT"
+
+# Kip & Wendy changed the data format again in mid-December, so now there's a new text format called .cs4
+# This repairs the timing issues that we saw in the previous versions and gives us access to satellite
+# count as well as GPS timing signal. I have created an additional channel for the timing signal
+# that can be used to validate timing. It will get us to the nearest second, anyway.
+
+# This code uses the new .cs4 meaning that the latest dat2asc.exe must be installed for this code to work.
+# This program is being uploaded to GITHUB and has a creation date of December 13, 2015
+
 # Fixed bug in convert definition that didn't like being in the same working directory as the data.
 # Fixed bug in sac write that wouldnt work in the 32-bit installations.
+# Removed dependency on calcontrol file by working in a one-time keyboard input of channel names.
+# Calcontrol is opened right away, and if not found, the operator is prompted to input the information.
+# CHannel names are then passed into the converter routine rather than open the control file each and
+# every time.
+
+# Calcontrol file needs to exist within the destination diretory (for now). Future code revision should
+# specify the cal control items as command line switches for automation purposes.
+
 
 
 import os
@@ -121,8 +138,8 @@ def getcal(calcontrol):
             print "Enter the four channel names, starting with channel 0:\n"
             cconstant[1] = raw_input('Channel 0: ') # (text) Channel name for CH0
             cconstant[3] = raw_input('Channel 1: ') # (text) Channel name for CH1
-            cconstant[5] = raw_input('Channel 2: ') # (float) adccal[1]: cal constant for ch 1 (microvolts / count)
-            cconstant[7] = raw_input('Channel 3: ') # (text) Channel name for CH2
+            cconstant[5] = raw_input('Channel 2: ') # (text) Channel name for CH2
+            cconstant[7] = raw_input('Channel 3: ') # (text) Channel name for CH3
 #            print "Enter the channel calibration constants for the above four channels.\n"
 #            cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
 #            cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
@@ -160,23 +177,49 @@ def load(infile): # Load the csv file
             rowcnt = 1
     return(header,stack)
 
+#         Returns the very first instance of a sample that exhibits a good sample rate, as well as the discovered sample rate.
+
+def timingvalidate(stack):
+    ltime = []
+    for i in range(0,len(stack)):
+        ltime.append(stack[i][14]) # linux time is field 14 in the new cs4 format. In old .csv format it is field 12.
+    sps = []
+    for i in range(1,len(ltime)):
+        sps.append(1/(float(ltime[i])-float(ltime[i-1]))) 
+    medsps =  np.median(sps)    # calculate the median instantaneous sample rate of the data set
+    first_sample = 0      
+    valid_sample = False
+    for i in range(0,len(sps)):
+        if not valid_sample:
+            if  ((medsps*.995) < sps[i] < (medsps*1.005)): # Valid sample falls within 0.5 percent of the median sample rate
+                valid_sample = True
+                first_sample = i
+    return(first_sample,medsps)
 
 
                         # process dat2sac
                         # Converts a dat file into a sac file format
 
-def csv2sac(infile,calcontrol):
+def csv2sac(infile,cconstant):
 #
     Channel = ["","","",""]
     units = ['Counts  ','Counts  ','Counts  ','Counts  ']
     comment = ['Velocity','Velocity','Velocity','Velocity']
     (header,stack) = load(infile)
-#    header = fdata[0]
-#    stack = fdata[1]
-    datetime = stack[0][13]+","+stack[0][14]
-    Frac_second = float(stack[0][15])
+    first_sample,medsps = timingvalidate(stack)
+    if first_sample <> 0:
+        print "\n\nA timing error exists in the 1st sample of the 1st record in this DAT series.\n"
+        print "Remove the first DAT file in the folder and try again."
+        sys.exit()
+   # print "The first sample shows instantaneous sample rate of {} S/second.".format(medsps)
+
+    # datetime = stack[0][13]+","+stack[0][14]
+    # Frac_second = float(stack[0][17])
+    datetime = stack[0][15]+","+stack[0][16]  # New cs4 format the fields are offset by two more columns
+    Frac_second = float(stack[0][17])
+
     St_time = time.strptime(datetime,"%Y/%m/%d,%H:%M:%S")
-    cconstant = getcal(calcontrol) # This will need to be fixed when using targeted directories.
+
     Station = cconstant[0]
     outfile = infile[0:string.rfind(infile,'.')]
     for i in range(0,4):
@@ -184,7 +227,8 @@ def csv2sac(infile,calcontrol):
 
     Samplecount = len(stack)
     print "Sample count stands at {} samples.".format(Samplecount)
-    Delta = (float(stack[len(stack)-1][12])-float(stack[0][12]))/len(stack)
+    Delta = 1/medsps
+    print "Delta = {0:.7f}, Sample rate = {1:.4f}".format(Delta,medsps) 
     sacfile = outfile[:string.find(infile,'.')]+'{}'.format(i)+'.sac'
         #
         # stack[1] = channel 1 time history
@@ -202,14 +246,14 @@ def csv2sac(infile,calcontrol):
         t.fromarray(b)
 
              #                     set the SAC header values
-        t.SetHvalue('scale',1.00) # Set the scale for each channel. This one is important to declare.
+        t.SetHvalue('scale',1.0) # Set the scale for each channel. This one is important to declare.
         t.SetHvalue('delta', Delta)
         t.SetHvalue('nzyear',St_time.tm_year)
         t.SetHvalue('nzjday',St_time.tm_yday)
         t.SetHvalue('nzhour',St_time.tm_hour)
         t.SetHvalue('nzmin',St_time.tm_min)
         t.SetHvalue('nzsec', St_time.tm_sec)
-        t.SetHvalue('nzmsec', int(Frac_second*1000))
+        t.SetHvalue('nzmsec', int((Frac_second)*1000))
         t.SetHvalue('kstnm',Station)
         t.SetHvalue('kcmpnm',Channel[i])
         t.SetHvalue('idep',4) # 4 = units of velocity (in Volts)
@@ -224,21 +268,52 @@ def csv2sac(infile,calcontrol):
             t.WriteSacBinary(sacfile)
         print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
         sacfile.close()
+
+#    for i in range(0,1): # Build special channel for timing
+    t = SacIO()
+    b = np.arange(len(stack),dtype=np.float32)   #   Establishes the size of the datastream
+    for n in range(len(stack)):        #   Load the array with time-history data
+        b[n] = np.float32(stack[n][13]) #   Get the timing value.
+    t.fromarray(b)
+
+             #                     set the SAC header values
+    t.SetHvalue('scale',1.0) # Set the scale for each channel. This one is important to declare.
+    t.SetHvalue('delta', Delta)
+    t.SetHvalue('nzyear',St_time.tm_year)
+    t.SetHvalue('nzjday',St_time.tm_yday)
+    t.SetHvalue('nzhour',St_time.tm_hour)
+    t.SetHvalue('nzmin',St_time.tm_min)
+    t.SetHvalue('nzsec', St_time.tm_sec)
+    t.SetHvalue('nzmsec', int((Frac_second)*1000))
+    t.SetHvalue('kstnm',Station)
+    t.SetHvalue('kcmpnm','GPS') # This is a GPS timing signal.
+    t.SetHvalue('idep',4) # 4 = units of velocity (in Volts)
+                              # Dependent variable choices: (1)unknown, (2)displacement(nm), 
+                              # (3)velocity(nm/sec), (4)velocity(volts), 
+                              # (5)nm/sec/sec
+    t.SetHvalue('kinst','GPS')       # Instrument type
+    t.SetHvalue('knetwk','CSV2SAC ')         # Network designator
+    t.SetHvalue('kuser0','digital')        # Place the system of units into the user text field 0
+    f = outfile+"_{}.sac".format('GPS')
+    with open(f,'wb') as sacfile:
+        t.WriteSacBinary(sacfile)
+    print " File successfully written: {0}_{1}.sac".format(outfile,'GPS')       
+    sacfile.close()
   
 
 
-def convert(infile):
+def convert(infile,cconstant):
     print infile
-    target = infile[string.rfind(infile,"\\")+1:string.find(infile,'.')]+".csv"
-    outfile = infile[:string.find(infile,'.')]+".csv"
-    dat2csvfile = infile[:string.rfind(infile,"\\")+1]+"Dat2asc-301-Data.csv"
-    calcontrol = infile[:string.rfind(infile,"\\")+1]+"calcontrol.cal"
-    subprocess.call(["c:\\Anaconda\\dat2asc.exe",infile,"csv"])
+    target = infile[string.rfind(infile,"\\")+1:string.find(infile,'.')]+".cs4"
+    outfile = infile[:string.find(infile,'.')]+".cs4"
+    dat2csvfile = infile[:string.rfind(infile,"\\")+1]+"Dat2asc-301-Data.cs4"
+
+    subprocess.call(["c:\\Anaconda\\dat2asc.exe",infile,"cs4"])
     print "convert {} to: \n".format(dat2csvfile)
     print outfile
 
     subprocess.call(["ren",dat2csvfile,target],shell=True)
-    csv2sac(outfile,calcontrol)
+    csv2sac(outfile,cconstant)
 
 
 def main():
@@ -249,6 +324,7 @@ def main():
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
                                       # The third option can designate an optional location for the calcontrol file.
                                       #
+    version = '20151216'              # Version number of this software
     optioncount = len(sys.argv)
     outputfile_defined = False
     filelist = []
@@ -256,17 +332,22 @@ def main():
     infile = ""
     directory = os.getcwd()
     directory = directory.replace("/","\\")
-    print "This is the directory name as taken from the computer:",directory
+    calcontrol = directory+"calcontrol.cal"
+    print "Dat2SAC Version {}".format(version)
+#    print "This is the directory name as taken from the computer:",directory
+	
     if optioncount > 1:
         
         
         directory = sys.argv[1]
         directory = directory.replace("/","\\")
+		
         print directory
         if directory[-1:] !="\\":
                 directory = directory+"\\"
         try:
-            filelist = os.listdir(directory)            
+            filelist = os.listdir(directory)
+            calcontrol = directory+"calcontrol.cal"            
         except:
             print "Command line parameter must consist of a valid directory. {}".format(directory)
             sys.exit(0)
@@ -274,12 +355,14 @@ def main():
         if directory[-1:] !="\\":
                 directory = directory+"\\"
         filelist = os.listdir(directory)
-    
-                                           
+        calcontrol = directory+"calcontrol.cal"
+		
+    cconstant = getcal(calcontrol) #                                       
     
     if ".dat" in filelist[0]:
         infile = directory+filelist[0]
-        convert(infile)
+		
+        convert(infile,cconstant)
 
     for n in range(1,len(filelist)):                                
         if ".dat" in filelist[n]:
@@ -290,13 +373,14 @@ def main():
                     if ((filenum1-filenum0)!=1):                    # Skip sequential files that have likely been converted with prev. file
                         infile = directory+filelist[n]
                         print "Converting: ",infile
-                        convert(infile)
+                        convert(infile,cconstant)
                 except:                                             # previous file failed but this one does not.
                     infile = directory+filelist[n]     
                     print "Converting: ",infile
-                    convert(infile)
+                    convert(infile,cconstant)
             except:
                 print "File {} does not comply to standard symmetric research naming formats and must be manually converted.".format(filelist[n])
+                print "This program requires the Symres DAT2ASC.exe source code from December, 2015 located on github"
 
 #
 # Check and run the main function here:

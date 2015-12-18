@@ -1,10 +1,18 @@
 File converters for symmetric research:
 
 dat2asc.exe - Use this program for dat files created using the USB4CH series of digitizers. 
+THe latest code from December 2015 creates multiple types of ascii files.
+The most common one (that is used by our utilities) is the cs4 format. This is a 
+comma separated variable text file with 17 columns. This is the format that is used
+by the latest dat2sac conversion utility.
+
+For historical purposes, I have renamed the 2010 code as dat2asc_old.exe but it has
+problems in handling the timing for conversion of the dat files. So, use the new
+version.
 
 Command example:
 
-dat2asc.exe c:\seismo\mydatafiles\00000001.dat csv
+dat2asc.exe c:\seismo\mydatafiles\00000001.dat cs4
 
 
 par42asc.exe - Use this program for dat files created using the PAR4CH seris of digitizers.
@@ -12,7 +20,8 @@ par42asc.exe - Use this program for dat files created using the PAR4CH seris of 
 par42asc.exe c:\seismo\mydatafiles\00000001.dat /tymd
 
 The two ascii file outputs will be different from one another. I am working on accomodating
-by creating an ascii-to-sac file converter that will identify and appropriately convert 
-either file.
+by creating an dat-to-sac file converter that can identify the different dat files,
+choose the proper converter, and appropriately convert either type of file. For now, only the 
+USB4CH model is supported.
 
-D Burk
+D Burk - 12-16-2015

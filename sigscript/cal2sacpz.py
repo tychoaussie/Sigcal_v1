@@ -1,5 +1,5 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20150910"
+__version__ = "20150806"
 __license__ = "MIT"
 
 #
@@ -7,7 +7,7 @@ __license__ = "MIT"
 # It also has interactive elements for setting the search parameters.
 #
 # Now, the most important part -- The legalese:
-# COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
+# COPYRIGHT BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
 # ALL RIGHTS RESERVED
 
 # PERMISSION IS GRANTED TO USE, COPY, COMBINE AND/OR MERGE, CREATE DERIVATIVE
@@ -876,8 +876,8 @@ def main():
                                           # fdata[0][0][5] # Laser position sensor in millivolts/micron
                                           # fdata[0][0][6] # Lcalconstant geometry correction factor
 
-    msu_damp = float(fdata[0][0][11])      # h damping ratio
-    msu_freep = 1/float(fdata[0][0][12])     # Free period oscillation in Hz
+    msu_damp = float(fdata[0][0][7])      # h damping ratio
+    msu_freep = 1/float(fdata[0][0][8])     # Free period oscillation in Hz
     print "msu free period is {}".format(msu_freep)  
     freq_msu = []                         # Initialize the frequency array
     amp_msu = []                          # Initialize the matching amplitude array
