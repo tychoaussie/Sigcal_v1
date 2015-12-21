@@ -187,6 +187,7 @@ def timingvalidate(stack):
     for i in range(1,len(ltime)):
         sps.append(1/(float(ltime[i])-float(ltime[i-1]))) 
     medsps =  np.median(sps)    # calculate the median instantaneous sample rate of the data set
+                                # This is close, but NOT the actual sample rate, however!
     first_sample = 0      
     valid_sample = False
     for i in range(0,len(sps)):
@@ -195,6 +196,38 @@ def timingvalidate(stack):
                 valid_sample = True
                 first_sample = i
     return(first_sample,medsps)
+
+#                       process getsps
+#                       Bring in the GPS stream and process to determine the exact sample rate
+#                       Find the first edge in the data, then count edges until the last edge in the data
+#                       Each edge represents one second. Tally up the samples between edges, and divide
+#                       by the number of seconds. The result is the sample rate for the whole data set.
+#                       This needs to be accurate to about one part in about ten million, I think, to keep
+#                       the timing lined up within a millisecond over the course of hours-long sac files.
+#                       Return the sample rate.
+ 
+
+def getsps(stack):
+    count = 0
+    firstsample = 0
+    firstset = False
+
+    for i in range(0,len(stack)-1):
+        edge = (int(stack[i+1][13])-int(stack[i][13]))
+        if edge != 0:
+            count +=1
+        if not firstset:
+            firstsample = i
+            firstset = True
+        else:
+            lastsample = i
+    starttime = float(stack[firstsample][14])
+    endtime = float(stack[lastsample][14])
+    ET = endtime-starttime
+
+    sps = (float(lastsample-firstsample)/ET)
+    print "Calculated sample rate from GPS time = {}".format(sps)
+    return(sps) # samples per second
 
 
                         # process dat2sac
@@ -206,15 +239,19 @@ def csv2sac(infile,cconstant):
     units = ['Counts  ','Counts  ','Counts  ','Counts  ']
     comment = ['Velocity','Velocity','Velocity','Velocity']
     (header,stack) = load(infile)
+
     first_sample,medsps = timingvalidate(stack)
+
     if first_sample <> 0:
         print "\n\nA timing error exists in the 1st sample of the 1st record in this DAT series.\n"
         print "Remove the first DAT file in the folder and try again."
         sys.exit()
+
    # print "The first sample shows instantaneous sample rate of {} S/second.".format(medsps)
 
     # datetime = stack[0][13]+","+stack[0][14]
     # Frac_second = float(stack[0][17])
+
     datetime = stack[0][15]+","+stack[0][16]  # New cs4 format the fields are offset by two more columns
     Frac_second = float(stack[0][17])
 
@@ -227,8 +264,12 @@ def csv2sac(infile,cconstant):
 
     Samplecount = len(stack)
     print "Sample count stands at {} samples.".format(Samplecount)
-    Delta = 1/medsps
-    print "Delta = {0:.7f}, Sample rate = {1:.4f}".format(Delta,medsps) 
+
+    Delta = 1.0/float(getsps(stack))
+
+#    Delta = 1/medsps
+
+    print "Delta = {0:.8f}, Sample rate = {1:.8f}".format(Delta,1/Delta)  
     sacfile = outfile[:string.find(infile,'.')]+'{}'.format(i)+'.sac'
         #
         # stack[1] = channel 1 time history
@@ -297,7 +338,8 @@ def csv2sac(infile,cconstant):
     f = outfile+"_{}.sac".format('GPS')
     with open(f,'wb') as sacfile:
         t.WriteSacBinary(sacfile)
-    print " File successfully written: {0}_{1}.sac".format(outfile,'GPS')       
+    print " File successfully written: {0}_{1}.sac".format(outfile,'GPS')
+#    print "Published sample rate in sac file = {}".format(t.stats.sampling_rate)       
     sacfile.close()
   
 
@@ -314,6 +356,8 @@ def convert(infile,cconstant):
 
     subprocess.call(["ren",dat2csvfile,target],shell=True)
     csv2sac(outfile,cconstant)
+    subprocess.call(["del",outfile],shell=True)
+    subprocess.call(["del",infile[:string.rfind(infile,"\\")+1]+"dat2asc-*.asc"],shell=True)
 
 
 def main():
