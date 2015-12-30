@@ -1,6 +1,11 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20151216"
+__version__ = "20151230"
 __license__ = "MIT"
+
+# 20151230 Add station name into the file name, along with the network name and the start time of the data
+# Integrate network designator. 
+# Code now looks for the calcontrol in the parent directory for conversion.
+# Channels with the channel designator "UNK" will no longer get written to disc.
 
 # Kip & Wendy changed the data format again in mid-December, so now there's a new text format called .cs4
 # This repairs the timing issues that we saw in the previous versions and gives us access to satellite
@@ -17,8 +22,7 @@ __license__ = "MIT"
 # CHannel names are then passed into the converter routine rather than open the control file each and
 # every time.
 
-# Calcontrol file needs to exist within the destination diretory (for now). Future code revision should
-# specify the cal control items as command line switches for automation purposes.
+# Calcontrol file needs to exist one level up from the destination directory.
 
 
 
@@ -89,7 +93,7 @@ def getcal(calcontrol):
     # Thus a third line is necessary that specifies the channel identifier and the channel assignment of that channel.
     # Channel name is located in the top row already, and it's position is associated with the sensitivity. So the third row designates the UUT and the
     # laser position channel.
-    cconstant = ["MSU","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2]
+    cconstant = ["MSU","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2,"BS"]
     try:
         with open(calcontrol,'r') as fin:
             list = csv.reader(fin)
@@ -128,12 +132,14 @@ def getcal(calcontrol):
             cconstant[12] = float(calconstants[8])# (float) resfreq: Free period resonance freq. as measured by engineer.
             cconstant[13] = int(selection[0])     # channel number of channel being tested
             cconstant[14] = int(selection[1])     # channel number of the laser position sensor data
+            cconstant[15] = header[0]
     except:
         print "Calibration control file not found!\n"
         print "You may enter the calibration information manually, or else press <ctrl>C"
         print "then place the cal control file in the directory containing the data files."
-        cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3]
+        cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3,""]
         try:
+            cconstant[15] = raw_input('Enter the Network code: ') # Network code
             cconstant[0] = raw_input('Enter the station name: ')# (test) Station name
             print "Enter the four channel names, starting with channel 0:\n"
             cconstant[1] = raw_input('Channel 0: ') # (text) Channel name for CH0
@@ -153,10 +159,11 @@ def getcal(calcontrol):
 #            cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
 #            cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
 #            cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
+#            cconstant[15] = Network code. (added 20151230 - drb)
         except:
            print "Error during manual input of the calibration constant parameters.\n"
            print "Setting the paramters to default settings."
-           cconstant = ["MSU","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2]
+           cconstant = ["MSU","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2,"BS"]
     return(cconstant)
 
 def load(infile): # Load the csv file
@@ -256,9 +263,15 @@ def csv2sac(infile,cconstant):
     Frac_second = float(stack[0][17])
 
     St_time = time.strptime(datetime,"%Y/%m/%d,%H:%M:%S")
-
+    stdate = str(St_time.tm_year)+"_"+str(St_time.tm_mon)+"_"+str(St_time.tm_mday)
+    stmin = str(St_time.tm_hour)+"_"+str(St_time.tm_min)+"_"+str(St_time.tm_sec)+"_"+str(int(Frac_second*1000))
+    Filetime = stdate+"_"+stmin+"_"
     Station = cconstant[0]
-    outfile = infile[0:string.rfind(infile,'.')]
+    Network = cconstant[15]
+    #     File naming convention: YYYY.DDD.HH.MM.SS.SSS.NN.STATION.CHANNEL
+    
+    outfile = infile[0:string.rfind(infile,'\\')]+"/"+Filetime+Network+"_"+Station
+
     for i in range(0,4):
         Channel[i]=cconstant[(2*i)+1]
 
@@ -302,13 +315,14 @@ def csv2sac(infile,cconstant):
                               # (3)velocity(nm/sec), (4)velocity(volts), 
                               # (5)nm/sec/sec
         t.SetHvalue('kinst',comment[i-1])       # Instrument type
-        t.SetHvalue('knetwk','CSV2SAC ')         # Network designator
+        t.SetHvalue('knetwk',Network)         # Network designator
         t.SetHvalue('kuser0',units[i-1])        # Place the system of units into the user text field 0
         f = outfile+"_{}.sac".format(Channel[i])
-        with open(f,'wb') as sacfile:
-            t.WriteSacBinary(sacfile)
-        print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
-        sacfile.close()
+        if Channel[i] !="UNK":
+            with open(f,'wb') as sacfile:
+                t.WriteSacBinary(sacfile)
+            print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
+            sacfile.close()
 
 #    for i in range(0,1): # Build special channel for timing
     t = SacIO()
@@ -333,7 +347,7 @@ def csv2sac(infile,cconstant):
                               # (3)velocity(nm/sec), (4)velocity(volts), 
                               # (5)nm/sec/sec
     t.SetHvalue('kinst','GPS')       # Instrument type
-    t.SetHvalue('knetwk','CSV2SAC ')         # Network designator
+    t.SetHvalue('knetwk',Network)         # Network designator
     t.SetHvalue('kuser0','digital')        # Place the system of units into the user text field 0
     f = outfile+"_{}.sac".format('GPS')
     with open(f,'wb') as sacfile:
@@ -368,7 +382,7 @@ def main():
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
                                       # The third option can designate an optional location for the calcontrol file.
                                       #
-    version = '20151216'              # Version number of this software
+    version = '20151230'              # Version number of this software
     optioncount = len(sys.argv)
     outputfile_defined = False
     filelist = []
@@ -376,7 +390,7 @@ def main():
     infile = ""
     directory = os.getcwd()
     directory = directory.replace("/","\\")
-    calcontrol = directory+"calcontrol.cal"
+    calcontrol = directory[:string.rfind(directory[:string.rfind(directory,"\\")],"\\")+1]+"calcontrol.cal"
     print "Dat2SAC Version {}".format(version)
 #    print "This is the directory name as taken from the computer:",directory
 	
@@ -391,7 +405,7 @@ def main():
                 directory = directory+"\\"
         try:
             filelist = os.listdir(directory)
-            calcontrol = directory+"calcontrol.cal"            
+            calcontrol = directory[:string.rfind(directory[:string.rfind(directory,"\\")],"\\")+1]+"calcontrol.cal"            
         except:
             print "Command line parameter must consist of a valid directory. {}".format(directory)
             sys.exit(0)
@@ -399,8 +413,8 @@ def main():
         if directory[-1:] !="\\":
                 directory = directory+"\\"
         filelist = os.listdir(directory)
-        calcontrol = directory+"calcontrol.cal"
-		
+        calcontrol = directory[:string.rfind(directory[:string.rfind(directory,"\\")],"\\")+1]+"calcontrol.cal"
+	print calcontrol	
     cconstant = getcal(calcontrol) #                                       
     
     if ".dat" in filelist[0]:
