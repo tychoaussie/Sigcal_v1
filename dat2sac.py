@@ -140,7 +140,7 @@ def getcal(calcontrol):
     except:
         print "Calibration control file not found!\n"
         print "You may enter the calibration information manually, or else press <ctrl>C"
-        print "then place the cal control file in the folder directly above the one containing the data files.(i.e. ../)"
+        print "then place the cal control file in the directory containing the data files."
         cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3,""]
         try:
             cconstant[15] = raw_input('Enter the Network code: ') # Network code
@@ -152,22 +152,21 @@ def getcal(calcontrol):
             cconstant[5] = raw_input('Channel 2: ') # (text) Channel name for CH2
             cconstant[7] = raw_input('Channel 3: ') # (text) Channel name for CH3
 
-#            if raw_input('Is this data for use with Sigcal?').lower()[0]=='y':
-#                print "Enter the channel calibration constants for the above four channels.\n"
-#                cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
-#                cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
-#                cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
-#                cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
-#                cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
-#                print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
-#                print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
-#                cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
-#                cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
-#                cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
-#                cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
-#                cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
- 
-               
+            if raw_input('Is this data for use with Sigcal?').lower()[1]='y':
+                print "Enter the channel calibration constants for the above four channels.\n"
+                cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
+                cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
+                cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
+                cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
+                cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
+                print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
+                print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
+                cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
+                cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
+                cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
+                cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
+                cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
+                cconstant[15] = Network code. # (added 20151230 - drb)
         except:
            print "Error during manual input of the calibration constant parameters.\n"
            print "Setting the paramters to default settings."
@@ -288,11 +287,13 @@ def csv2sac(infile,cconstant):
 
     Delta = 1.0/float(getsps(stack))
 
+#    Delta = 1/medsps
+
     print "Delta = {0:.8f}, Sample rate = {1:.8f}".format(Delta,1/Delta)  
     sacfile = outfile[:string.find(infile,'.')]+'{}'.format(i)+'.sac'
         #
         # stack[1] = channel 1 time history
-        # 
+        # .
         #
         # stack[4] = channel 4 time history
         #

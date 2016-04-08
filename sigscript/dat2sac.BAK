@@ -1,10 +1,6 @@
 __author__ = "Daniel Burk <burkdani@msu.edu>"
-__version__ = "20160408"
+__version__ = "20151230"
 __license__ = "MIT"
-
-# 20160408 Obspy completely changed out the SAC handler necessitating a change to all code.
-# You must upgrade to Obspy version 1.0.1 or later for this code to work. Otherwise, look to the Github
-# and pull the latest version from the end of 2015.
 
 # 20151230 Add station name into the file name, along with the network name and the start time of the data
 # Integrate network designator. 
@@ -41,8 +37,8 @@ import numpy as np
 import string                              # We use the string.find utility for file naming
 import time                                # we use the sleep function to enable conversion of the DAT
 import subprocess                          # used for the execution of command-line programs
-
-from obspy.io.sac import SACTrace
+from obspy.core import read, Trace, Stream, UTCDateTime
+from obspy.sac import SacIO
 
 # Now, the most important part -- The legalese:
 # COPYRIGHT  BOARD OF TRUSTEES OF MICHIGAN STATE UNIVERSITY
@@ -140,38 +136,34 @@ def getcal(calcontrol):
     except:
         print "Calibration control file not found!\n"
         print "You may enter the calibration information manually, or else press <ctrl>C"
-        print "then place the cal control file in the folder directly above the one containing the data files.(i.e. ../)"
+        print "then place the cal control file in the directory containing the data files."
         cconstant = ["","",1.0,"",1.0,"",1.0,"",1.0,1.0,1.0,1.0,1.0,2,3,""]
         try:
             cconstant[15] = raw_input('Enter the Network code: ') # Network code
             cconstant[0] = raw_input('Enter the station name: ')# (test) Station name
             print "Enter the four channel names, starting with channel 0:\n"
-            print "If a channel is unused, designate it as 'UNK' to prevent conversion."
             cconstant[1] = raw_input('Channel 0: ') # (text) Channel name for CH0
             cconstant[3] = raw_input('Channel 1: ') # (text) Channel name for CH1
             cconstant[5] = raw_input('Channel 2: ') # (text) Channel name for CH2
             cconstant[7] = raw_input('Channel 3: ') # (text) Channel name for CH3
-
-#            if raw_input('Is this data for use with Sigcal?').lower()[0]=='y':
-#                print "Enter the channel calibration constants for the above four channels.\n"
-#                cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
-#                cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
-#                cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
-#                cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
-#                cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
-#                print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
-#                print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
-#                cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
-#                cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
-#                cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
-#                cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
-#                cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
- 
-               
+#            print "Enter the channel calibration constants for the above four channels.\n"
+#            cconstant[2] = raw_input('CH0 calibration constant (uV/count): ') # (float) adccal[2]: cal constant for ch 2 (microvolts / count)
+#            cconstant[4] = raw_input('CH1 calibration constant (uV/count): ')              # (text) Channel name for CH3
+#            cconstant[6] = raw_input('CH2 calibration constant (uV/count): ') # (float) adccal[3]: cal constant for ch 3 (microvolts / count)
+#            cconstant[8] = raw_input('CH3 calibration constant (uV/count): ')  # (float) laserres: cal constant for the laser ( mV / micron)
+#            cconstant[9] = raw_input('Enter the resolution for the laser position sensor (mV/micron): ')
+#            print "The laser geometry correction ratio is the ratio of distance from pendulum pivot to center of mass"
+#            print "divided by the distance from pendulum pivot to the measurement point of the laser beam."
+#            cconstant[10] = raw_input('What is the laser geometry correction constant ratio? ') # (float) lcalconst: cal constant for geometry correction factor
+#            cconstant[11] = raw_input('Enter the measured damping ratio for the seismometer under test. ') # (float) h: Damping ratio for the seismometer as measured by engineer.
+#            cconstant[12] = raw_input('Enter the resonance frequency of the seismometer under test. (in Hz). ') # (float) resfreq: Free period resonance freq. as measured by engineer.
+#            cconstant[13] = raw_input('Enter the channel number (0 through 3) for the seismometer under test. ')    # channel number of channel being tested
+#            cconstant[14] = raw_input('Enter the channel number (0 through 3) repesenting the laser position sensor. ')     # channel number of the laser position sensor
+#            cconstant[15] = Network code. (added 20151230 - drb)
         except:
            print "Error during manual input of the calibration constant parameters.\n"
            print "Setting the paramters to default settings."
-           cconstant = ["TEST","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2,"LM"]
+           cconstant = ["MSU","CH0",1.0,"CH1",1.0,"CH2",1.0,"CH3",1.0,1.0,1.0,0.707,1.0,1,2,"BS"]
     return(cconstant)
 
 def load(infile): # Load the csv file
@@ -288,80 +280,78 @@ def csv2sac(infile,cconstant):
 
     Delta = 1.0/float(getsps(stack))
 
+#    Delta = 1/medsps
+
     print "Delta = {0:.8f}, Sample rate = {1:.8f}".format(Delta,1/Delta)  
     sacfile = outfile[:string.find(infile,'.')]+'{}'.format(i)+'.sac'
         #
         # stack[1] = channel 1 time history
-        # 
+        # .
         #
         # stack[4] = channel 4 time history
         #
 
 
     for i in range(0,4): # Build each channel
-       
+        t = SacIO()
         b = np.arange(len(stack),dtype=np.float32)   #   Establishes the size of the datastream
         for n in range(len(stack)):        #   Load the array with time-history data
             b[n] = np.float32(stack[n][i+1]) #   Convert the measurement from counts to volts.
+        t.fromarray(b)
 
-        t = SACTrace(data = b)         
-                    #                     set the SAC header values
-        t.scale=1.0     # Set the scale for each channel for use with DIMAS software
-        t.delta=Delta
-        t.nzyear=St_time.tm_year
-        t.nzjday=St_time.tm_yday
-        t.nzhour=St_time.tm_hour
-        t.nzmin=St_time.tm_min
-        t.nzsec=St_time.tm_sec
-        t.nzmsec=int((Frac_second)*1000)
-        t.kstnm=Station
-        t.kcmpnm=Channel[i]
-        t.IDEP=4 # 4 = units of velocity (in Volts)
+             #                     set the SAC header values
+        t.SetHvalue('scale',1.0) # Set the scale for each channel. This one is important to declare.
+        t.SetHvalue('delta', Delta)
+        t.SetHvalue('nzyear',St_time.tm_year)
+        t.SetHvalue('nzjday',St_time.tm_yday)
+        t.SetHvalue('nzhour',St_time.tm_hour)
+        t.SetHvalue('nzmin',St_time.tm_min)
+        t.SetHvalue('nzsec', St_time.tm_sec)
+        t.SetHvalue('nzmsec', int((Frac_second)*1000))
+        t.SetHvalue('kstnm',Station)
+        t.SetHvalue('kcmpnm',Channel[i])
+        t.SetHvalue('idep',4) # 4 = units of velocity (in Volts)
                               # Dependent variable choices: (1)unknown, (2)displacement(nm), 
                               # (3)velocity(nm/sec), (4)velocity(volts), 
                               # (5)nm/sec/sec
-        t.kinst=comment[i-1]       # Instrument type
-        t.knetwk=Network        # Network designator
-        t.kuser0=units[i-1]        # Place the system of units into the user text field 0
-
+        t.SetHvalue('kinst',comment[i-1])       # Instrument type
+        t.SetHvalue('knetwk',Network)         # Network designator
+        t.SetHvalue('kuser0',units[i-1])        # Place the system of units into the user text field 0
         f = outfile+"_{}.sac".format(Channel[i])
-
-        if Channel[i] !="UNK":   # We do not write streams in which the channel name is UNK
+        if Channel[i] !="UNK":
             with open(f,'wb') as sacfile:
-                t.write(sacfile)
+                t.WriteSacBinary(sacfile)
             print " File successfully written: {0}_{1}.sac".format(outfile,Channel[i])       
             sacfile.close()
 
 #    for i in range(0,1): # Build special channel for timing
-
+    t = SacIO()
     b = np.arange(len(stack),dtype=np.float32)   #   Establishes the size of the datastream
     for n in range(len(stack)):        #   Load the array with time-history data
         b[n] = np.float32(stack[n][13]) #   Get the timing value.
-    t = SACTrace(data = b)
+    t.fromarray(b)
 
              #                     set the SAC header values
-    t.scale=1.0 # Set the scale for each channel. This one is important to declare.
-    t.delta=Delta
-    t.nzyear=St_time.tm_year
-    t.nzjday=St_time.tm_yday
-    t.nzhour=St_time.tm_hour
-    t.nzmin=St_time.tm_min
-    t.nzsec= St_time.tm_sec
-    t.nzmsec= int((Frac_second)*1000)
-    t.kstnm=Station
-    t.kcmpnm='GPS' # This is a GPS timing signal.
-    t.IDEP=1 # 4 = units of velocity (in Volts)
+    t.SetHvalue('scale',1.0) # Set the scale for each channel. This one is important to declare.
+    t.SetHvalue('delta', Delta)
+    t.SetHvalue('nzyear',St_time.tm_year)
+    t.SetHvalue('nzjday',St_time.tm_yday)
+    t.SetHvalue('nzhour',St_time.tm_hour)
+    t.SetHvalue('nzmin',St_time.tm_min)
+    t.SetHvalue('nzsec', St_time.tm_sec)
+    t.SetHvalue('nzmsec', int((Frac_second)*1000))
+    t.SetHvalue('kstnm',Station)
+    t.SetHvalue('kcmpnm','GPS') # This is a GPS timing signal.
+    t.SetHvalue('idep',4) # 4 = units of velocity (in Volts)
                               # Dependent variable choices: (1)unknown, (2)displacement(nm), 
                               # (3)velocity(nm/sec), (4)velocity(volts), 
                               # (5)nm/sec/sec
-    t.kinst='GPS'       # Instrument type
-    t.knetwk=Network         # Network designator
-    t.kuser0='digital'        # Place the system of units into the user text field 0
-
+    t.SetHvalue('kinst','GPS')       # Instrument type
+    t.SetHvalue('knetwk',Network)         # Network designator
+    t.SetHvalue('kuser0','digital')        # Place the system of units into the user text field 0
     f = outfile+"_{}.sac".format('GPS')
     with open(f,'wb') as sacfile:
-        t.write(sacfile)
-
+        t.WriteSacBinary(sacfile)
     print " File successfully written: {0}_{1}.sac".format(outfile,'GPS')
 #    print "Published sample rate in sac file = {}".format(t.stats.sampling_rate)       
     sacfile.close()
@@ -392,7 +382,7 @@ def main():
                                       # as well as the calibration control file, c:\seismo\caldta\calcontrol.csv
                                       # The third option can designate an optional location for the calcontrol file.
                                       #
-    version = '20160408'              # Version number of this software
+    version = '20151230'              # Version number of this software
     optioncount = len(sys.argv)
     outputfile_defined = False
     filelist = []
